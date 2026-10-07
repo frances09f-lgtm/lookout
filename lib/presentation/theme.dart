@@ -5,14 +5,23 @@ class LookoutTheme {
   static const _seed = Color(0xFF2E6BE6);
 
   static ThemeData light() => ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-            seedColor: _seed, brightness: Brightness.light),
-      );
+    useMaterial3: true,
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: _seed,
+      brightness: Brightness.light,
+    ),
+  );
 
   static ThemeData dark() => ThemeData(
-        useMaterial3: true,
-        colorScheme:
-            ColorScheme.fromSeed(seedColor: _seed, brightness: Brightness.dark),
-      );
+    useMaterial3: true,
+    scaffoldBackgroundColor: const Color(0xFF121212),
+    appBarTheme: const AppBarTheme(
+      backgroundColor: Color(0xFF121212),
+      surfaceTintColor: Colors.transparent,
+    ),
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: _seed,
+      brightness: Brightness.dark,
+    ),
+  );
 }

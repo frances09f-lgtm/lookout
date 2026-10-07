@@ -51,6 +51,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final failed = _count(AgentStatus.failed);
 
     return Scaffold(
+      backgroundColor: const Color(0xFF121212),
       appBar: AppBar(
         title: const Text('Lookout'),
         actions: [
@@ -58,21 +59,30 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: const Icon(Icons.history),
             tooltip: 'Activity log',
             onPressed: () async {
-              await Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => ActivityScreen(repo: widget.repo)));
+              await Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ActivityScreen(repo: widget.repo),
+                ),
+              );
               _refresh();
             },
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFF2979FF),
+        foregroundColor: Colors.white,
+        tooltip: 'Create agent',
+        shape: const CircleBorder(),
         onPressed: () async {
-          await Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => CreateAgentScreen(repo: widget.repo)));
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => CreateAgentScreen(repo: widget.repo),
+            ),
+          );
           _refresh();
         },
-        icon: const Icon(Icons.add),
-        label: const Text('Create Agent'),
+        child: const Icon(Icons.add),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -81,58 +91,73 @@ class _HomeScreenState extends State<HomeScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  Row(children: [
-                    _SummaryChip(label: 'Active', count: active),
-                    _SummaryChip(label: 'Paused', count: paused),
-                    _SummaryChip(label: 'Done', count: completed),
-                    _SummaryChip(label: 'Failed', count: failed),
-                  ]),
+                  Row(
+                    children: [
+                      _SummaryChip(label: 'Active', count: active),
+                      _SummaryChip(label: 'Paused', count: paused),
+                      _SummaryChip(label: 'Done', count: completed),
+                      _SummaryChip(label: 'Failed', count: failed),
+                    ],
+                  ),
                   const SizedBox(height: 16),
                   if (_agents.isEmpty)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 48),
                       child: Center(
                         child: Text(
-                          'No agents yet.\nTap Create Agent and tell Lookout what to watch.',
+                          'No agents yet.\nTap + and tell Lookout what to watch.',
                           textAlign: TextAlign.center,
                         ),
                       ),
                     )
                   else
-                    ..._agents.map((a) => _AgentCard(
-                          agent: a,
-                          onTap: () async {
-                            await Navigator.of(context).push(MaterialPageRoute(
-                                builder: (_) => AgentDetailsScreen(
-                                    repo: widget.repo,
-                                    checker: widget.checker,
-                                    agentId: a.id!)));
-                            _refresh();
-                          },
-                          onRunNow: () async {
-                            await widget.checker.checkAgent(a);
-                            _refresh();
-                          },
-                          onPauseResume: () async {
-                            await widget.repo.updateAgent(a.copyWith(
-                                status: a.status == AgentStatus.paused
-                                    ? AgentStatus.active
-                                    : AgentStatus.paused));
-                            _refresh();
-                          },
-                        )),
+                    ..._agents.map(
+                      (a) => _AgentCard(
+                        agent: a,
+                        onTap: () async {
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => AgentDetailsScreen(
+                                repo: widget.repo,
+                                checker: widget.checker,
+                                agentId: a.id!,
+                              ),
+                            ),
+                          );
+                          _refresh();
+                        },
+                        onRunNow: () async {
+                          await widget.checker.checkAgent(a);
+                          _refresh();
+                        },
+                        onPauseResume: () async {
+                          await widget.repo.updateAgent(
+                            a.copyWith(
+                              status: a.status == AgentStatus.paused
+                                  ? AgentStatus.active
+                                  : AgentStatus.paused,
+                            ),
+                          );
+                          _refresh();
+                        },
+                      ),
+                    ),
                   if (_recent.isNotEmpty) ...[
                     const SizedBox(height: 24),
-                    Text('Recent activity',
-                        style: Theme.of(context).textTheme.titleMedium),
+                    Text(
+                      'Recent activity',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                     const SizedBox(height: 8),
-                    ..._recent.map((e) => ListTile(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.bolt, size: 18),
-                          title: Text(e.message),
-                          subtitle: Text(_fmtTime(e.timestamp)),
-                        )),
+                    ..._recent.map(
+                      (e) => ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.bolt, size: 18),
+                        title: Text(e.message),
+                        subtitle: Text(_fmtTime(e.timestamp)),
+                      ),
+                    ),
                   ],
                 ],
               ),
@@ -148,19 +173,53 @@ class _SummaryChip extends StatelessWidget {
   final String label;
   final int count;
   const _SummaryChip({required this.label, required this.count});
+  Color get color => switch (label) {
+    'Active' => const Color(0xFF54F29A),
+    'Paused' => const Color(0xFFFFC857),
+    'Done' => const Color(0xFF66A6FF),
+    _ => const Color(0xFFFF6575),
+  };
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: Card(
+      child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 3),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          child: Column(children: [
-            Text('$count',
-                style: Theme.of(context).textTheme.titleLarge),
-            Text(label, style: Theme.of(context).textTheme.labelSmall),
-          ]),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E1E1E),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 5,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  '$count',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 19,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(color: Color(0xFFB6B6B6), fontSize: 11),
+            ),
+          ],
         ),
       ),
     );
@@ -182,49 +241,112 @@ class _AgentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final icon = agent.type == AgentType.reminder
-        ? Icons.alarm
-        : Icons.trending_down;
-    final scheme = Theme.of(context).colorScheme;
-    final statusColor = switch (agent.status) {
-      AgentStatus.active => scheme.primary,
-      AgentStatus.paused => scheme.tertiary,
-      AgentStatus.completed => Colors.green,
-      AgentStatus.failed => scheme.error,
+    final color = switch (agent.status) {
+      AgentStatus.active => const Color(0xFF54F29A),
+      AgentStatus.paused => const Color(0xFFFFC857),
+      AgentStatus.completed => const Color(0xFF66A6FF),
+      AgentStatus.failed => const Color(0xFFFF6575),
     };
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
+    final checked = agent.lastCheckedAt;
+    String age() {
+      if (checked == null) return 'Not checked yet';
+      final d = DateTime.now().difference(checked);
+      if (d.isNegative) return 'Checked ${_fmt(checked)}';
+      if (d.inMinutes < 1) return 'Checked just now';
+      if (d.inHours < 1) return 'Checked ${d.inMinutes}m ago';
+      if (d.inDays < 1) return 'Checked ${d.inHours}h ago';
+      return 'Checked ${d.inDays}d ago';
+    }
+
+    Widget badge(String text, Color c) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: .1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(text, style: TextStyle(color: c, fontSize: 11)),
+    );
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border(left: BorderSide(color: color, width: 3)),
+      ),
       child: InkWell(
+        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Icon(icon, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                  child: Text(agent.title,
-                      style: Theme.of(context).textTheme.titleSmall,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis)),
-              Text(agent.statusLabel,
-                  style: TextStyle(color: statusColor, fontSize: 12)),
-            ]),
-            const SizedBox(height: 6),
-            Text(agent.conditionLabel,
-                style: Theme.of(context).textTheme.bodySmall),
-            if (agent.lastCheckedAt != null)
-              Text('Last checked ${_fmt(agent.lastCheckedAt!)}',
-                  style: Theme.of(context).textTheme.bodySmall),
-            Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-              TextButton(onPressed: onRunNow, child: const Text('Run now')),
-              TextButton(
-                onPressed: onPauseResume,
-                child: Text(
-                    agent.status == AgentStatus.paused ? 'Resume' : 'Pause'),
+          padding: const EdgeInsets.fromLTRB(15, 14, 10, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          agent.title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          agent.conditionLabel,
+                          style: const TextStyle(
+                            color: Color(0xFFB6B6B6),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Run now',
+                    onPressed: onRunNow,
+                    icon: const Icon(
+                      Icons.play_arrow_rounded,
+                      color: Color(0xFFD6D6D6),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: agent.status == AgentStatus.paused
+                        ? 'Resume'
+                        : 'Pause',
+                    onPressed: onPauseResume,
+                    icon: Icon(
+                      agent.status == AgentStatus.paused
+                          ? Icons.play_circle_outline
+                          : Icons.pause_rounded,
+                      color: const Color(0xFFD6D6D6),
+                    ),
+                  ),
+                ],
               ),
-            ]),
-          ]),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 7,
+                runSpacing: 7,
+                children: [
+                  badge(
+                    agent.status == AgentStatus.completed
+                        ? 'Done'
+                        : agent.statusLabel,
+                    color,
+                  ),
+                  badge(age(), const Color(0xFFB6B6B6)),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

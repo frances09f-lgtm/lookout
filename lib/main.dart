@@ -16,12 +16,20 @@ void main() async {
   final repo = await SqfliteAgentRepository.open();
 
   final navigatorKey = GlobalKey<NavigatorState>();
-  final notifications = LocalNotificationsService(onTapAgent: (agentId) {
-    final checker = AgentChecker(repo: repo, notifier: RecordingNotifier());
-    navigatorKey.currentState?.push(MaterialPageRoute(
-        builder: (_) => AgentDetailsScreen(
-            repo: repo, checker: checker, agentId: agentId)));
-  });
+  final notifications = LocalNotificationsService(
+    onTapAgent: (agentId) {
+      final checker = AgentChecker(repo: repo, notifier: RecordingNotifier());
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(
+          builder: (_) => AgentDetailsScreen(
+            repo: repo,
+            checker: checker,
+            agentId: agentId,
+          ),
+        ),
+      );
+    },
+  );
   await notifications.init();
   UsageReporter.report('app_start');
 
@@ -38,8 +46,12 @@ class LookoutApp extends StatelessWidget {
   final AgentChecker checker;
   final GlobalKey<NavigatorState>? navigatorKey;
 
-  const LookoutApp(
-      {super.key, required this.repo, required this.checker, this.navigatorKey});
+  const LookoutApp({
+    super.key,
+    required this.repo,
+    required this.checker,
+    this.navigatorKey,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +59,8 @@ class LookoutApp extends StatelessWidget {
       title: 'Lookout',
       theme: LookoutTheme.light(),
       darkTheme: LookoutTheme.dark(),
-      themeMode: ThemeMode.system,
+      themeMode: ThemeMode.dark,
+      debugShowCheckedModeBanner: false,
       navigatorKey: navigatorKey,
       home: HomeScreen(repo: repo, checker: checker),
     );
