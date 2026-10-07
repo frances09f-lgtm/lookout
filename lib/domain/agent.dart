@@ -51,6 +51,10 @@ class Agent {
   /// Page to fetch the watched value from. Null = manual value watch.
   final String? sourceUrl;
   final bool notificationEnabled;
+  final DateTime? lastSuccessfulReadAt;
+  final double? lastSuccessfulValue;
+  final String? lastReadMethod;
+  final String? lastReadSourceUrl;
 
   const Agent({
     this.id,
@@ -68,6 +72,10 @@ class Agent {
     this.previousValue,
     this.sourceUrl,
     this.notificationEnabled = true,
+    this.lastSuccessfulReadAt,
+    this.lastSuccessfulValue,
+    this.lastReadMethod,
+    this.lastReadSourceUrl,
   });
 
   Agent copyWith({
@@ -82,6 +90,10 @@ class Agent {
     double? previousValue,
     String? sourceUrl,
     bool? notificationEnabled,
+    DateTime? lastSuccessfulReadAt,
+    double? lastSuccessfulValue,
+    String? lastReadMethod,
+    String? lastReadSourceUrl,
     bool clearCurrentValue = false,
     bool clearSourceUrl = false,
   }) {
@@ -97,32 +109,40 @@ class Agent {
       checkInterval: checkInterval ?? this.checkInterval,
       condition: condition,
       target: target ?? this.target,
-      currentValue: clearCurrentValue ? null : (currentValue ?? this.currentValue),
+      currentValue: clearCurrentValue
+          ? null
+          : (currentValue ?? this.currentValue),
       previousValue: previousValue ?? this.previousValue,
       sourceUrl: clearSourceUrl ? null : (sourceUrl ?? this.sourceUrl),
       notificationEnabled: notificationEnabled ?? this.notificationEnabled,
+      lastSuccessfulReadAt: lastSuccessfulReadAt ?? this.lastSuccessfulReadAt,
+      lastSuccessfulValue: lastSuccessfulValue ?? this.lastSuccessfulValue,
+      lastReadMethod: lastReadMethod ?? this.lastReadMethod,
+      lastReadSourceUrl: lastReadSourceUrl ?? this.lastReadSourceUrl,
     );
   }
 
   String get typeLabel => switch (type) {
-        AgentType.reminder => 'Reminder',
-        AgentType.valueWatch => 'Value watch',
-      };
+    AgentType.reminder => 'Reminder',
+    AgentType.valueWatch => 'Value watch',
+  };
 
   String get statusLabel => switch (status) {
-        AgentStatus.active => 'Active',
-        AgentStatus.paused => 'Paused',
-        AgentStatus.completed => 'Completed',
-        AgentStatus.failed => 'Failed',
-      };
+    AgentStatus.active => 'Active',
+    AgentStatus.paused => 'Paused',
+    AgentStatus.completed => 'Completed',
+    AgentStatus.failed => 'Failed',
+  };
 
   /// Human description of the condition shown on cards and details.
   String get conditionLabel => switch (condition) {
-        WatchCondition.remindAt =>
-          'Remind at ${_fmtTime(DateTime.fromMillisecondsSinceEpoch(target.round()))}',
-        WatchCondition.lessThan => 'Notify when value drops below ${_fmtNum(target)}',
-        WatchCondition.greaterThan => 'Notify when value rises above ${_fmtNum(target)}',
-      };
+    WatchCondition.remindAt =>
+      'Remind at ${_fmtTime(DateTime.fromMillisecondsSinceEpoch(target.round()))}',
+    WatchCondition.lessThan =>
+      'Notify when value drops below ${_fmtNum(target)}',
+    WatchCondition.greaterThan =>
+      'Notify when value rises above ${_fmtNum(target)}',
+  };
 
   static String _fmtTime(DateTime t) {
     final h = t.hour.toString().padLeft(2, '0');
@@ -134,43 +154,52 @@ class Agent {
       v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
 
   Map<String, Object?> toMap() => {
-        'id': id,
-        'title': title,
-        'originalPrompt': originalPrompt,
-        'type': type.name,
-        'status': status.name,
-        'createdAt': createdAt.millisecondsSinceEpoch,
-        'lastCheckedAt': lastCheckedAt?.millisecondsSinceEpoch,
-        'nextCheckAt': nextCheckAt?.millisecondsSinceEpoch,
-        'checkIntervalMinutes': checkInterval.inMinutes,
-        'condition': condition.name,
-        'target': target,
-        'currentValue': currentValue,
-        'previousValue': previousValue,
-        'sourceUrl': sourceUrl,
-        'notificationEnabled': notificationEnabled ? 1 : 0,
-      };
+    'id': id,
+    'title': title,
+    'originalPrompt': originalPrompt,
+    'type': type.name,
+    'status': status.name,
+    'createdAt': createdAt.millisecondsSinceEpoch,
+    'lastCheckedAt': lastCheckedAt?.millisecondsSinceEpoch,
+    'nextCheckAt': nextCheckAt?.millisecondsSinceEpoch,
+    'checkIntervalMinutes': checkInterval.inMinutes,
+    'condition': condition.name,
+    'target': target,
+    'currentValue': currentValue,
+    'previousValue': previousValue,
+    'sourceUrl': sourceUrl,
+    'notificationEnabled': notificationEnabled ? 1 : 0,
+    'lastSuccessfulReadAt': lastSuccessfulReadAt?.millisecondsSinceEpoch,
+    'lastSuccessfulValue': lastSuccessfulValue,
+    'lastReadMethod': lastReadMethod,
+    'lastReadSourceUrl': lastReadSourceUrl,
+  };
 
   factory Agent.fromMap(Map<String, Object?> m) => Agent(
-        id: m['id'] as int?,
-        title: m['title'] as String,
-        originalPrompt: m['originalPrompt'] as String,
-        type: AgentType.values.byName(m['type'] as String),
-        status: AgentStatus.values.byName(m['status'] as String),
-        createdAt:
-            DateTime.fromMillisecondsSinceEpoch(m['createdAt'] as int),
-        lastCheckedAt: m['lastCheckedAt'] == null
-            ? null
-            : DateTime.fromMillisecondsSinceEpoch(m['lastCheckedAt'] as int),
-        nextCheckAt: m['nextCheckAt'] == null
-            ? null
-            : DateTime.fromMillisecondsSinceEpoch(m['nextCheckAt'] as int),
-        checkInterval: Duration(minutes: m['checkIntervalMinutes'] as int),
-        condition: WatchCondition.values.byName(m['condition'] as String),
-        target: (m['target'] as num).toDouble(),
-        currentValue: (m['currentValue'] as num?)?.toDouble(),
-        previousValue: (m['previousValue'] as num?)?.toDouble(),
-        sourceUrl: m['sourceUrl'] as String?,
-        notificationEnabled: (m['notificationEnabled'] as int) == 1,
-      );
+    id: m['id'] as int?,
+    title: m['title'] as String,
+    originalPrompt: m['originalPrompt'] as String,
+    type: AgentType.values.byName(m['type'] as String),
+    status: AgentStatus.values.byName(m['status'] as String),
+    createdAt: DateTime.fromMillisecondsSinceEpoch(m['createdAt'] as int),
+    lastCheckedAt: m['lastCheckedAt'] == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(m['lastCheckedAt'] as int),
+    nextCheckAt: m['nextCheckAt'] == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(m['nextCheckAt'] as int),
+    checkInterval: Duration(minutes: m['checkIntervalMinutes'] as int),
+    condition: WatchCondition.values.byName(m['condition'] as String),
+    target: (m['target'] as num).toDouble(),
+    currentValue: (m['currentValue'] as num?)?.toDouble(),
+    previousValue: (m['previousValue'] as num?)?.toDouble(),
+    sourceUrl: m['sourceUrl'] as String?,
+    notificationEnabled: (m['notificationEnabled'] as int) == 1,
+    lastSuccessfulReadAt: m['lastSuccessfulReadAt'] == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(m['lastSuccessfulReadAt'] as int),
+    lastSuccessfulValue: (m['lastSuccessfulValue'] as num?)?.toDouble(),
+    lastReadMethod: m['lastReadMethod'] as String?,
+    lastReadSourceUrl: m['lastReadSourceUrl'] as String?,
+  );
 }

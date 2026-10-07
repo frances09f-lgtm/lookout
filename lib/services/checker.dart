@@ -25,14 +25,16 @@ class AgentChecker {
   final LookoutNotifier notifier;
   final DateTime Function() now;
   final Future<FetchOutcome> Function(String url) fetcher;
+  final String readMethod;
 
-  AgentChecker(
-      {required this.repo,
-      required this.notifier,
-      DateTime Function()? clock,
-      Future<FetchOutcome> Function(String url)? fetcher})
-      : now = clock ?? DateTime.now,
-        fetcher = fetcher ?? PageValueFetcher.fetchValue;
+  AgentChecker({
+    required this.repo,
+    required this.notifier,
+    DateTime Function()? clock,
+    Future<FetchOutcome> Function(String url)? fetcher,
+    this.readMethod = 'Automatic page read',
+  }) : now = clock ?? DateTime.now,
+       fetcher = fetcher ?? PageValueFetcher.fetchValue;
 
   /// Background entry point: check every due active agent.
   Future<int> checkDueAgents() async {
@@ -57,6 +59,7 @@ class AgentChecker {
     String detail;
     double? newCurrent = agent.currentValue;
     bool currentChanged = false;
+    bool successfulRead = false;
     switch (agent.type) {
       case AgentType.reminder:
         final dueAt = DateTime.fromMillisecondsSinceEpoch(agent.target.round());
@@ -68,6 +71,7 @@ class AgentChecker {
           final outcome = await fetcher(agent.sourceUrl!);
           UsageReporter.report('watch_fetch');
           if (outcome.ok && outcome.value != null) {
+            successfulRead = true;
             if (outcome.value != agent.currentValue) {
               newCurrent = outcome.value;
               currentChanged = true;
@@ -88,8 +92,7 @@ class AgentChecker {
           final current = agent.currentValue;
           if (current == null) {
             met = false;
-            detail =
-                'No source page set and no manual value (add a page link or update the value on the agent page)';
+            detail = 'No source page set and no manual value (add a page link or update the value on the agent page)';
           } else {
             met = switch (agent.condition) {
               WatchCondition.lessThan => current < agent.target,
@@ -102,15 +105,17 @@ class AgentChecker {
         break;
     }
     await repo.logActivity(id, 'Fetched data: $detail', at);
-    await repo.logActivity(
-        id, met ? 'Condition met' : 'Condition not met', at);
+    await repo.logActivity(id, met ? 'Condition met' : 'Condition not met', at);
 
     var updated = agent.copyWith(
       lastCheckedAt: at,
+      lastSuccessfulReadAt: successfulRead ? at : null,
+      lastSuccessfulValue: successfulRead ? newCurrent : null,
+      lastReadMethod: successfulRead ? readMethod : null,
+      lastReadSourceUrl: successfulRead ? agent.sourceUrl : null,
       nextCheckAt: at.add(agent.checkInterval),
       currentValue: newCurrent,
-      previousValue:
-          currentChanged ? agent.currentValue : agent.previousValue,
+      previousValue: currentChanged ? agent.currentValue : agent.previousValue,
     );
 
     if (met) {
@@ -124,16 +129,17 @@ class AgentChecker {
         await notifier.showAgentResult(agentId: id, title: title, body: body);
         await repo.logActivity(id, 'Notification sent', at);
       }
-      UsageReporter.report(agent.type == AgentType.reminder
-          ? 'reminder_fired'
-          : 'watch_triggered');
+      UsageReporter.report(
+        agent.type == AgentType.reminder ? 'reminder_fired' : 'watch_triggered',
+      );
       updated = updated.copyWith(status: AgentStatus.completed);
       await repo.logActivity(id, 'Agent completed', at);
     } else {
       await repo.logActivity(
-          id,
-          'Next check scheduled for ${_fmtTime(at.add(agent.checkInterval))}',
-          at);
+        id,
+        'Next check scheduled for ${_fmtTime(at.add(agent.checkInterval))}',
+        at,
+      );
     }
     await repo.updateAgent(updated);
     return CheckResult(met, detail);

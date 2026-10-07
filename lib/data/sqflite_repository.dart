@@ -10,7 +10,7 @@ import 'agent_repository.dart';
 
 class SqfliteAgentRepository implements AgentRepository {
   static const _dbName = 'lookout.db';
-  static const _dbVersion = 2;
+  static const _dbVersion = 3;
 
   final Database _db;
 
@@ -38,6 +38,10 @@ class SqfliteAgentRepository implements AgentRepository {
             currentValue REAL,
             previousValue REAL,
             sourceUrl TEXT,
+            lastSuccessfulReadAt INTEGER,
+            lastSuccessfulValue REAL,
+            lastReadMethod TEXT,
+            lastReadSourceUrl TEXT,
             notificationEnabled INTEGER NOT NULL DEFAULT 1
           )
         ''');
@@ -51,11 +55,25 @@ class SqfliteAgentRepository implements AgentRepository {
           )
         ''');
         await db.execute(
-            'CREATE INDEX idx_activity_agent ON activity(agentId, timestamp)');
+          'CREATE INDEX idx_activity_agent ON activity(agentId, timestamp)',
+        );
         await db.execute(
-            'CREATE INDEX idx_agents_due ON agents(status, nextCheckAt)');
+          'CREATE INDEX idx_agents_due ON agents(status, nextCheckAt)',
+        );
       },
       onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 3) {
+          await db.execute(
+            'ALTER TABLE agents ADD COLUMN lastSuccessfulReadAt INTEGER',
+          );
+          await db.execute(
+            'ALTER TABLE agents ADD COLUMN lastSuccessfulValue REAL',
+          );
+          await db.execute('ALTER TABLE agents ADD COLUMN lastReadMethod TEXT');
+          await db.execute(
+            'ALTER TABLE agents ADD COLUMN lastReadSourceUrl TEXT',
+          );
+        }
         if (oldVersion < 2) {
           await db.execute('ALTER TABLE agents ADD COLUMN sourceUrl TEXT');
         }
@@ -83,8 +101,11 @@ class SqfliteAgentRepository implements AgentRepository {
 
   @override
   Future<void> updateAgent(Agent agent) => _db.update(
-      'agents', agent.toMap()..remove('id'),
-      where: 'id = ?', whereArgs: [agent.id]);
+    'agents',
+    agent.toMap()..remove('id'),
+    where: 'id = ?',
+    whereArgs: [agent.id],
+  );
 
   @override
   Future<void> deleteAgent(int id) =>
@@ -109,19 +130,27 @@ class SqfliteAgentRepository implements AgentRepository {
       });
 
   @override
-  Future<List<ActivityEntry>> activityFor(int agentId, {int limit = 100}) async {
-    final rows = await _db.query('activity',
-        where: 'agentId = ?',
-        whereArgs: [agentId],
-        orderBy: 'timestamp DESC',
-        limit: limit);
+  Future<List<ActivityEntry>> activityFor(
+    int agentId, {
+    int limit = 100,
+  }) async {
+    final rows = await _db.query(
+      'activity',
+      where: 'agentId = ?',
+      whereArgs: [agentId],
+      orderBy: 'timestamp DESC',
+      limit: limit,
+    );
     return rows.map(ActivityEntry.fromMap).toList();
   }
 
   @override
   Future<List<ActivityEntry>> recentActivity({int limit = 50}) async {
-    final rows =
-        await _db.query('activity', orderBy: 'timestamp DESC', limit: limit);
+    final rows = await _db.query(
+      'activity',
+      orderBy: 'timestamp DESC',
+      limit: limit,
+    );
     return rows.map(ActivityEntry.fromMap).toList();
   }
 

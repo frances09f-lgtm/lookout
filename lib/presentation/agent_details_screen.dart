@@ -84,6 +84,10 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
         _agent!.copyWith(
           previousValue: _agent!.currentValue,
           currentValue: value,
+          lastSuccessfulReadAt: DateTime.now(),
+          lastSuccessfulValue: value,
+          lastReadMethod: 'Manual value entry',
+          lastReadSourceUrl: '',
         ),
       );
       await widget.repo.logActivity(
@@ -287,6 +291,57 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                       ),
                     ),
                   ),
+                if (a.type == AgentType.valueWatch)
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Watch source',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 8),
+                          SelectableText(
+                            a.sourceUrl ??
+                                'Manual value watch - no page linked',
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            a.lastSuccessfulReadAt == null
+                                ? 'Last successful read: none recorded'
+                                : 'Last successful read: ${_fmtTime(a.lastSuccessfulReadAt!)}',
+                          ),
+                          if (a.lastSuccessfulReadAt != null) ...[
+                            Text(
+                              'Value: ${a.lastSuccessfulValue ?? "Unknown"}',
+                            ),
+                            Text(
+                              'Method: ${a.lastReadMethod ?? "Unknown (older version)"}',
+                            ),
+                            if (a.lastReadSourceUrl != null &&
+                                a.lastReadSourceUrl!.isNotEmpty &&
+                                a.lastReadSourceUrl != a.sourceUrl)
+                              const Text(
+                                'This read was from the previous source, not the current link.',
+                              ),
+                            if (a.lastReadMethod == 'Manual value entry')
+                              const Text(
+                                'User-entered value, not a live ticket price.',
+                              ),
+                            if (a.lastCheckedAt != null &&
+                                a.lastCheckedAt!.isAfter(
+                                  a.lastSuccessfulReadAt!,
+                                ))
+                              const Text(
+                                'Latest check did not obtain a fresh page value. This is the last successful read.',
+                              ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
                 _row('Goal', a.originalPrompt),
                 _row('Condition', a.conditionLabel),
                 _row(
@@ -338,6 +393,7 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                           repo: widget.repo,
                           notifier: widget.checker.notifier,
                           fetcher: (_) async => outcome,
+                          readMethod: 'Browser read (user started)',
                         );
                         final result = await checker.checkAgent(latest);
                         if (!mounted) return;

@@ -30,8 +30,9 @@ class InMemoryAgentRepository implements AgentRepository {
   int _activitySeq = 0;
 
   @override
-  Future<List<Agent>> allAgents() async =>
-      List.unmodifiable(_agents..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
+  Future<List<Agent>> allAgents() async => List.unmodifiable(
+    _agents..sort((a, b) => b.createdAt.compareTo(a.createdAt)),
+  );
 
   @override
   Future<Agent?> agentById(int id) async {
@@ -49,22 +50,26 @@ class InMemoryAgentRepository implements AgentRepository {
   }
 
   Agent _withId(Agent a, int id) => Agent(
-        id: id,
-        title: a.title,
-        originalPrompt: a.originalPrompt,
-        type: a.type,
-        status: a.status,
-        createdAt: a.createdAt,
-        lastCheckedAt: a.lastCheckedAt,
-        nextCheckAt: a.nextCheckAt,
-        checkInterval: a.checkInterval,
-        condition: a.condition,
-        target: a.target,
-        currentValue: a.currentValue,
-        previousValue: a.previousValue,
-        sourceUrl: a.sourceUrl,
-        notificationEnabled: a.notificationEnabled,
-      );
+    id: id,
+    title: a.title,
+    originalPrompt: a.originalPrompt,
+    type: a.type,
+    status: a.status,
+    createdAt: a.createdAt,
+    lastCheckedAt: a.lastCheckedAt,
+    nextCheckAt: a.nextCheckAt,
+    checkInterval: a.checkInterval,
+    condition: a.condition,
+    target: a.target,
+    currentValue: a.currentValue,
+    previousValue: a.previousValue,
+    sourceUrl: a.sourceUrl,
+    notificationEnabled: a.notificationEnabled,
+    lastSuccessfulReadAt: a.lastSuccessfulReadAt,
+    lastSuccessfulValue: a.lastSuccessfulValue,
+    lastReadMethod: a.lastReadMethod,
+    lastReadSourceUrl: a.lastReadSourceUrl,
+  );
 
   @override
   Future<void> updateAgent(Agent agent) async {
@@ -80,19 +85,30 @@ class InMemoryAgentRepository implements AgentRepository {
 
   @override
   Future<List<Agent>> dueAgents(DateTime now) async => _agents
-      .where((a) =>
-          a.status == AgentStatus.active &&
-          (a.nextCheckAt == null || !a.nextCheckAt!.isAfter(now)))
+      .where(
+        (a) =>
+            a.status == AgentStatus.active &&
+            (a.nextCheckAt == null || !a.nextCheckAt!.isAfter(now)),
+      )
       .toList();
 
   @override
   Future<void> logActivity(int agentId, String message, DateTime at) async {
-    _activity.add(ActivityEntry(
-        id: ++_activitySeq, agentId: agentId, timestamp: at, message: message));
+    _activity.add(
+      ActivityEntry(
+        id: ++_activitySeq,
+        agentId: agentId,
+        timestamp: at,
+        message: message,
+      ),
+    );
   }
 
   @override
-  Future<List<ActivityEntry>> activityFor(int agentId, {int limit = 100}) async {
+  Future<List<ActivityEntry>> activityFor(
+    int agentId, {
+    int limit = 100,
+  }) async {
     final list = _activity.where((e) => e.agentId == agentId).toList()
       ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
     return list.take(limit).toList();
