@@ -8,6 +8,7 @@ import 'presentation/theme.dart';
 import 'services/background.dart';
 import 'services/checker.dart';
 import 'services/notifications.dart';
+import 'services/usage_reporter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,6 +23,7 @@ void main() async {
             repo: repo, checker: checker, agentId: agentId)));
   });
   await notifications.init();
+  UsageReporter.report('app_start');
 
   final checker = AgentChecker(repo: repo, notifier: notifications);
 

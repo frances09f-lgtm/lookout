@@ -10,6 +10,7 @@ library;
 import '../data/agent_repository.dart';
 import '../domain/agent.dart';
 import 'notifications.dart';
+import 'usage_reporter.dart';
 
 class CheckResult {
   final bool conditionMet;
@@ -88,6 +89,9 @@ class AgentChecker {
         await notifier.showAgentResult(agentId: id, title: title, body: body);
         await repo.logActivity(id, 'Notification sent', at);
       }
+      UsageReporter.report(agent.type == AgentType.reminder
+          ? 'reminder_fired'
+          : 'watch_triggered');
       updated = updated.copyWith(status: AgentStatus.completed);
       await repo.logActivity(id, 'Agent completed', at);
     } else {
