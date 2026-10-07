@@ -38,11 +38,10 @@ class BackgroundScheduler {
       checkTaskName,
       checkTaskName,
       frequency: const Duration(minutes: 15),
-      // Value watches fetch real pages: only run when the device actually
-      // has network, otherwise the fetch fails with a fake "host lookup"
-      // error and the cycle is wasted.
-      constraints: Constraints(networkType: NetworkType.connected),
-      existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
+      // The same dispatcher handles offline reminders and online watches.
+      // Do not block reminders while offline. Watch fetch failures are logged
+      // without evaluating stale prices, then retried on the next due cycle.
+      existingWorkPolicy: ExistingPeriodicWorkPolicy.update,
     );
   }
 }
