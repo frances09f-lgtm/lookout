@@ -174,6 +174,66 @@ class PageValueFetcher {
     return t.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
+  /// Prefer product-bound JSON-LD offers; never use MRP or related-card text.
+  static ({bool productPage, double? price}) productOffer(
+    String html,
+    String url,
+  ) {
+    final products = <Map>[];
+    void collect(dynamic n) {
+      if (n is List) {
+        for (final x in n) {
+          collect(x);
+        }
+      }
+      if (n is Map) {
+        final type = n['@type'];
+        if (type == 'Product' || (type is List && type.contains('Product')))
+          products.add(n);
+        if (n['@graph'] != null) collect(n['@graph']);
+      }
+    }
+
+    for (final m in RegExp(
+      r'''<script[^>]*type=["']application/ld\+json["'][^>]*>([\s\S]*?)</script>''',
+      caseSensitive: false,
+    ).allMatches(html)) {
+      try {
+        collect(jsonDecode(m.group(1)!));
+      } catch (_) {}
+    }
+    if (products.isEmpty) return (productPage: false, price: null);
+    final names = products
+        .map((p) => p['name']?.toString().toLowerCase().trim())
+        .toSet();
+    final prices = <double>{};
+    final uri = Uri.parse(url);
+    for (final p in products) {
+      final productUrl = p['url']?.toString();
+      if (productUrl != null) {
+        final u = Uri.tryParse(productUrl);
+        if (u == null || u.host != uri.host || u.path != uri.path) continue;
+      } else if (names.length != 1 || names.contains(null))
+        continue;
+      final offers = p['offers'];
+      final items = offers is List ? offers : [offers];
+      for (final o in items) {
+        if (o is! Map) continue;
+        if (o['@type'] != 'Offer' ||
+            o['availability']?.toString().contains('OutOfStock') == true)
+          continue;
+        final c = o['priceCurrency']?.toString();
+        if (c == null || c.isEmpty) continue;
+        final v = double.tryParse(o['price']?.toString() ?? '');
+        if (v != null && v.isFinite && v > 0) prices.add(v);
+      }
+    }
+    return (
+      productPage: true,
+      price: prices.length == 1 ? prices.single : null,
+    );
+  }
+
   /// Fetches [url] and extracts a value. Never throws: failures come back as
   /// honest FetchOutcome.failed descriptions. Transient network failures
   /// (the phone's radio or DNS still waking up when a background check
@@ -227,9 +287,21 @@ class PageValueFetcher {
     final raw = await _fetchBody(url);
     if (raw.error != null) return FetchOutcome.failed(raw.error!);
     final body = raw.body!;
-    if (body.length > 2000000) {
-      return FetchOutcome.failed('Page from $host was too large to read');
+    final offer = productOffer(body, url);
+    if (offer.productPage) {
+      if (offer.price != null)
+        return FetchOutcome.found(
+          offer.price!,
+          'Product offer ${offer.price} on $host',
+        );
+      return FetchOutcome.failed(
+        'Product page from $host has no unambiguous current offer price. MRP and related product prices were not used',
+      );
     }
+    if (body.length > 2000000)
+      return FetchOutcome.failed(
+        'Large page from $host has no product offer data. No price was guessed',
+      );
     final text = htmlToText(body);
     final value = extractValue(text);
     if (value == null) {
@@ -266,10 +338,22 @@ class PageValueFetcher {
               'Could not fetch page (HTTP ${response.statusCode}) from $host',
         );
       }
-      final body = await response
-          .transform(utf8.decoder)
-          .join()
-          .timeout(const Duration(seconds: 20));
+      final buffer = StringBuffer();
+      var size = 0;
+      await for (final chunk
+          in response
+              .transform(utf8.decoder)
+              .timeout(const Duration(seconds: 20))) {
+        size += chunk.length;
+        if (size > 12000000)
+          return (
+            body: null,
+            error:
+                'Page from $host exceeds the safe read limit; no price guessed',
+          );
+        buffer.write(chunk);
+      }
+      final body = buffer.toString();
       return (body: body, error: null);
     } on TimeoutException {
       return (body: null, error: 'Fetching $host timed out');
