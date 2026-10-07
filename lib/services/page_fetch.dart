@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:html/parser.dart' as html_parser;
+
 /// One webpage fetch + value extraction attempt.
 class FetchOutcome {
   final bool ok;
@@ -174,6 +176,36 @@ class PageValueFetcher {
     return t.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
+  /// Reliance's current product-header price overrides stale SEO offers.
+  /// Marketing, EMI, description and MRP amounts are never header prices.
+  static ({double? price, bool unavailable, bool mrpOnly}) retailerHeader(
+    String body,
+    String url,
+  ) {
+    if (Uri.parse(url).host != 'www.reliancedigital.in')
+      return (price: null, unavailable: false, mrpOnly: false);
+    final doc = html_parser.parse(body);
+    final visible = htmlToText(body).toLowerCase();
+    final unavailable = visible.contains('currently unavailable online');
+    final nodes = doc.querySelectorAll('.product-price');
+    final prices = <double>{};
+    var mrp = false;
+    for (final n in nodes) {
+      if (n.text.toLowerCase().contains('mrp') ||
+          n.querySelector('.mrp-text') != null) {
+        mrp = true;
+        continue;
+      }
+      final price = extractValue(n.text);
+      if (price != null) prices.add(price);
+    }
+    return (
+      price: prices.length == 1 ? prices.single : null,
+      unavailable: unavailable,
+      mrpOnly: mrp && prices.isEmpty,
+    );
+  }
+
   /// Prefer product-bound JSON-LD offers; never use MRP or related-card text.
   static ({bool productPage, double? price}) productOffer(
     String html,
@@ -288,6 +320,18 @@ class PageValueFetcher {
     if (raw.error != null) return FetchOutcome.failed(raw.error!);
     final body = raw.body!;
     final offer = productOffer(body, url);
+    final header = retailerHeader(body, url);
+    if (header.unavailable || header.mrpOnly)
+      return FetchOutcome.failed(
+        'Product page from $host is unavailable or shows MRP only; no current offer price confirmed',
+      );
+    if (header.price != null) {
+      final conflict = offer.price != null && offer.price != header.price;
+      return FetchOutcome.found(
+        header.price!,
+        'Product header price ${header.price} on $host${conflict ? ' (structured offer ${offer.price} differs; current header used)' : ''}',
+      );
+    }
     if (offer.productPage) {
       if (offer.price != null)
         return FetchOutcome.found(
