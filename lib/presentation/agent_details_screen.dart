@@ -85,25 +85,47 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
         TextEditingController(text: _agent?.target.toString() ?? '');
     final value = await showDialog<double>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edit target'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration:
-              const InputDecoration(labelText: 'Notify below / above'),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () => Navigator.pop(
-                ctx, double.tryParse(controller.text.replaceAll(',', ''))),
-            child: const Text('Save'),
+      builder: (ctx) {
+        String? error;
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            title: const Text('Edit target'),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                  labelText: 'Notify below / above', errorText: error),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel')),
+              FilledButton(
+                onPressed: () {
+                  // Accept the way people actually type money: "₹200",
+                  // "200 rs", "1,500". An unparseable value must say so,
+                  // never silently close without saving.
+                  final cleaned = controller.text
+                      .toLowerCase()
+                      .replaceAll(',', '')
+                      .replaceAll(RegExp(r'₹|\$|rs\.?|inr|usd'), '')
+                      .trim();
+                  final v = double.tryParse(cleaned);
+                  if (v == null || v <= 0) {
+                    setDialogState(
+                        () => error = 'Enter a number, like 200');
+                    return;
+                  }
+                  Navigator.pop(ctx, v);
+                },
+                child: const Text('Save'),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
     if (value != null && _agent != null) {
       await widget.repo.updateAgent(_agent!.copyWith(target: value));

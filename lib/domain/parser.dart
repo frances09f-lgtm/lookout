@@ -70,7 +70,8 @@ class GoalParser {
       r'costlier than|drops?\s+(?:to|below)|falls?\s+(?:to|below)|'
       r'go(?:es)?\s+(?:below|above|under|over)|rises?\s+(?:above|over)|'
       r'crosses?|reaches?|comes?\s+(?:below|under)|down\s+to|'
-      r'target\s*(?:of)?|limit\s*(?:of)?)\s*(?:₹|\$|rs\.?|inr|usd)?\s*([0-9][0-9,]*(?:\.\d+)?)',
+      r'target\s*(?:of|is)?|limit\s*(?:of|is)?|'
+      r'(?:alert|notify|tell)\s+(?:me\s+)?at)\s*(?:₹|\$|rs\.?|inr|usd)?\s*([0-9][0-9,]*(?:\.\d+)?)',
       caseSensitive: false);
 
   static final _url = RegExp(

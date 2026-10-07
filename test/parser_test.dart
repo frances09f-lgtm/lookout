@@ -69,6 +69,19 @@ void main() {
       expect(p.target, 4100);
     });
 
+    test('"alert me at N" phrasing (his actual style) takes N, not the name digit', () {
+      final p = GoalParser.parse(
+          'drishyam 3 ticket price at fortune cineplex ichalkaranji, alert me at 200');
+      expect(p.outcome, ParseOutcome.ok);
+      expect(p.target, 200);
+    });
+
+    test('"target is N" phrasing works', () {
+      final p = GoalParser.parse('drishyam 3 ticket price, target is 200');
+      expect(p.outcome, ParseOutcome.ok);
+      expect(p.target, 200);
+    });
+
     test('no comparison number at all: unclear, never a guessed target', () {
       final p = GoalParser.parse('movie 3 ticket price at fortune cineplex');
       expect(p.outcome, isNot(ParseOutcome.ok));
