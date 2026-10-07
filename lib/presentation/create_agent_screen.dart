@@ -20,6 +20,8 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
   ];
 
   final _controller = TextEditingController();
+  final _urlController = TextEditingController();
+  String? _lastAutoUrl;
   ParsedGoal? _parsed;
   Duration _interval = const Duration(minutes: 30);
 
@@ -39,13 +41,28 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
     _controller.addListener(() => setState(() {
           final text = _controller.text.trim();
           _parsed = text.isEmpty ? null : GoalParser.parse(text);
+          final u = _parsed?.sourceUrl;
+          if (u != null && u != _lastAutoUrl) {
+            _urlController.text = u;
+            _lastAutoUrl = u;
+          }
         }));
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _urlController.dispose();
     super.dispose();
+  }
+
+  String? get _sourceUrl {
+    final typed = _urlController.text.trim();
+    if (typed.isEmpty) return null;
+    return GoalParser.extractUrl(typed) ??
+        (typed.contains('.') && !typed.contains(' ')
+            ? 'https://$typed'
+            : null);
   }
 
   String _intervalLabel(Duration d) => d.inMinutes < 60
@@ -67,6 +84,7 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
       checkInterval: _interval,
       condition: p.condition!,
       target: p.target!,
+      sourceUrl: _sourceUrl,
     ));
     if (mounted) Navigator.of(context).pop();
   }
@@ -86,6 +104,16 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
               labelText: 'What do you want me to watch?',
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _urlController,
+            keyboardType: TextInputType.url,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              labelText: 'Page link to fetch the value from (optional)',
+              hintText: 'https://...',
             ),
           ),
           const SizedBox(height: 12),
@@ -132,9 +160,11 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
                       Text(
                           'Condition: ${p.condition == WatchCondition.lessThan ? 'below' : 'above'} ${p.target}'),
                     if (p.type == AgentType.valueWatch)
-                      const Text(
-                          'V1 has no web fetching - you update the current value on the agent page and Lookout checks the condition in the background.',
-                          style: TextStyle(fontSize: 12)),
+                      Text(
+                          _sourceUrl != null
+                              ? 'Lookout fetches the current value from that page on every check.'
+                              : 'No page link given - add one above and Lookout fetches the value itself, or update the value manually on the agent page.',
+                          style: const TextStyle(fontSize: 12)),
                   ],
                 ),
               ),

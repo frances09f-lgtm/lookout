@@ -10,7 +10,7 @@ import 'agent_repository.dart';
 
 class SqfliteAgentRepository implements AgentRepository {
   static const _dbName = 'lookout.db';
-  static const _dbVersion = 1;
+  static const _dbVersion = 2;
 
   final Database _db;
 
@@ -37,6 +37,7 @@ class SqfliteAgentRepository implements AgentRepository {
             target REAL NOT NULL,
             currentValue REAL,
             previousValue REAL,
+            sourceUrl TEXT,
             notificationEnabled INTEGER NOT NULL DEFAULT 1
           )
         ''');
@@ -53,6 +54,11 @@ class SqfliteAgentRepository implements AgentRepository {
             'CREATE INDEX idx_activity_agent ON activity(agentId, timestamp)');
         await db.execute(
             'CREATE INDEX idx_agents_due ON agents(status, nextCheckAt)');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute('ALTER TABLE agents ADD COLUMN sourceUrl TEXT');
+        }
       },
     );
     await db.execute('PRAGMA foreign_keys = ON');

@@ -11,10 +11,10 @@ enum AgentType {
   /// Fires once when a point in time is reached.
   reminder,
 
-  /// Watches a value the user maintains (e.g. a price they see) and fires
-  /// when it crosses the target. V1 has no web fetching - the user updates
-  /// the current value from the details screen and Lookout evaluates the
-  /// condition on every check.
+  /// Watches a numeric value (e.g. a price) and fires when it crosses the
+  /// target. When the agent has a sourceUrl, Lookout fetches the page and
+  /// reads the value itself on every check; without one, the user updates
+  /// the value from the details screen.
   valueWatch,
 }
 
@@ -47,6 +47,9 @@ class Agent {
   final double target;
   final double? currentValue;
   final double? previousValue;
+
+  /// Page to fetch the watched value from. Null = manual value watch.
+  final String? sourceUrl;
   final bool notificationEnabled;
 
   const Agent({
@@ -63,6 +66,7 @@ class Agent {
     required this.target,
     this.currentValue,
     this.previousValue,
+    this.sourceUrl,
     this.notificationEnabled = true,
   });
 
@@ -76,8 +80,10 @@ class Agent {
     double? target,
     double? currentValue,
     double? previousValue,
+    String? sourceUrl,
     bool? notificationEnabled,
     bool clearCurrentValue = false,
+    bool clearSourceUrl = false,
   }) {
     return Agent(
       id: id ?? this.id,
@@ -93,6 +99,7 @@ class Agent {
       target: target ?? this.target,
       currentValue: clearCurrentValue ? null : (currentValue ?? this.currentValue),
       previousValue: previousValue ?? this.previousValue,
+      sourceUrl: clearSourceUrl ? null : (sourceUrl ?? this.sourceUrl),
       notificationEnabled: notificationEnabled ?? this.notificationEnabled,
     );
   }
@@ -140,6 +147,7 @@ class Agent {
         'target': target,
         'currentValue': currentValue,
         'previousValue': previousValue,
+        'sourceUrl': sourceUrl,
         'notificationEnabled': notificationEnabled ? 1 : 0,
       };
 
@@ -162,6 +170,7 @@ class Agent {
         target: (m['target'] as num).toDouble(),
         currentValue: (m['currentValue'] as num?)?.toDouble(),
         previousValue: (m['previousValue'] as num?)?.toDouble(),
+        sourceUrl: m['sourceUrl'] as String?,
         notificationEnabled: (m['notificationEnabled'] as int) == 1,
       );
 }

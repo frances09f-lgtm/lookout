@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../data/agent_repository.dart';
 import '../domain/activity.dart';
 import '../domain/agent.dart';
+import '../domain/parser.dart';
 import '../services/checker.dart';
 
 class AgentDetailsScreen extends StatefulWidget {
@@ -79,6 +80,84 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
     }
   }
 
+  Future<void> _editTarget() async {
+    final controller =
+        TextEditingController(text: _agent?.target.toString() ?? '');
+    final value = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit target'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration:
+              const InputDecoration(labelText: 'Notify below / above'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(
+                ctx, double.tryParse(controller.text.replaceAll(',', ''))),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (value != null && _agent != null) {
+      await widget.repo.updateAgent(_agent!.copyWith(target: value));
+      await widget.repo
+          .logActivity(widget.agentId, 'Target changed to $value', DateTime.now());
+      _refresh();
+    }
+  }
+
+  Future<void> _setSourcePage() async {
+    final controller =
+        TextEditingController(text: _agent?.sourceUrl ?? '');
+    final saved = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Source page'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.url,
+          decoration: const InputDecoration(
+              labelText: 'Page link',
+              hintText: 'https://... (leave empty for manual values)'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (saved != null && _agent != null) {
+      if (saved.isEmpty) {
+        await widget.repo
+            .updateAgent(_agent!.copyWith(clearSourceUrl: true));
+        await widget.repo.logActivity(widget.agentId,
+            'Source page cleared - values update manually', DateTime.now());
+      } else {
+        final url = GoalParser.extractUrl(saved) ??
+            (saved.contains('.') && !saved.contains(' ')
+                ? 'https://$saved'
+                : null);
+        if (url == null) return;
+        await widget.repo.updateAgent(_agent!.copyWith(sourceUrl: url));
+        await widget.repo.logActivity(
+            widget.agentId, 'Source page set to $url', DateTime.now());
+      }
+      _refresh();
+    }
+  }
+
   Future<void> _delete() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -136,11 +215,23 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                 if (a.type == AgentType.valueWatch) ...[
                   _row('Current value', a.currentValue?.toString() ?? 'Not set'),
                   _row('Previous value', a.previousValue?.toString() ?? '-'),
+                  _row('Source page',
+                      a.sourceUrl ?? 'Not set - updates stay manual'),
                   const SizedBox(height: 4),
                   OutlinedButton.icon(
                     onPressed: _updateValue,
                     icon: const Icon(Icons.edit),
                     label: const Text('Update current value'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _editTarget,
+                    icon: const Icon(Icons.adjust),
+                    label: const Text('Edit target'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _setSourcePage,
+                    icon: const Icon(Icons.link),
+                    label: const Text('Set source page'),
                   ),
                 ],
                 const SizedBox(height: 16),

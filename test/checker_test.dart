@@ -90,7 +90,7 @@ void main() {
     final stored = await repo.agentById(id);
     expect(stored!.status, AgentStatus.active);
     final log = await repo.activityFor(id);
-    expect(log.any((e) => e.message.contains('Waiting for a current value')), isTrue);
+    expect(log.any((e) => e.message.contains('No source page set and no manual value')), isTrue);
   });
 
   test('paused agents are not checked', () async {

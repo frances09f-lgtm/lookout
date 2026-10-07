@@ -62,6 +62,7 @@ class InMemoryAgentRepository implements AgentRepository {
         target: a.target,
         currentValue: a.currentValue,
         previousValue: a.previousValue,
+        sourceUrl: a.sourceUrl,
         notificationEnabled: a.notificationEnabled,
       );
 
