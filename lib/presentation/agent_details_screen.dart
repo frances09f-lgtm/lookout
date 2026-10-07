@@ -6,17 +6,20 @@ import '../domain/activity.dart';
 import '../domain/agent.dart';
 import '../domain/parser.dart';
 import '../services/checker.dart';
+import '../services/browser_price_check.dart';
+import '../services/page_fetch.dart';
 
 class AgentDetailsScreen extends StatefulWidget {
   final AgentRepository repo;
   final AgentChecker checker;
   final int agentId;
 
-  const AgentDetailsScreen(
-      {super.key,
-      required this.repo,
-      required this.checker,
-      required this.agentId});
+  const AgentDetailsScreen({
+    super.key,
+    required this.repo,
+    required this.checker,
+    required this.agentId,
+  });
 
   @override
   State<AgentDetailsScreen> createState() => _AgentDetailsScreenState();
@@ -49,7 +52,8 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
 
   Future<void> _updateValue() async {
     final controller = TextEditingController(
-        text: _agent?.currentValue?.toString() ?? '');
+      text: _agent?.currentValue?.toString() ?? '',
+    );
     final value = await showDialog<double>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -62,27 +66,39 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
-            onPressed: () =>
-                Navigator.pop(ctx, double.tryParse(controller.text.replaceAll(',', ''))),
+            onPressed: () => Navigator.pop(
+              ctx,
+              double.tryParse(controller.text.replaceAll(',', '')),
+            ),
             child: const Text('Save'),
           ),
         ],
       ),
     );
     if (value != null && _agent != null) {
-      await widget.repo.updateAgent(_agent!.copyWith(
-          previousValue: _agent!.currentValue, currentValue: value));
-      await widget.repo
-          .logActivity(widget.agentId, 'Value updated to $value', DateTime.now());
+      await widget.repo.updateAgent(
+        _agent!.copyWith(
+          previousValue: _agent!.currentValue,
+          currentValue: value,
+        ),
+      );
+      await widget.repo.logActivity(
+        widget.agentId,
+        'Value updated to $value',
+        DateTime.now(),
+      );
       _refresh();
     }
   }
 
   Future<void> _editTarget() async {
-    final controller =
-        TextEditingController(text: _agent?.target.toString() ?? '');
+    final controller = TextEditingController(
+      text: _agent?.target.toString() ?? '',
+    );
     final value = await showDialog<double>(
       context: context,
       builder: (ctx) {
@@ -93,15 +109,19 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
             content: TextField(
               controller: controller,
               autofocus: true,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               decoration: InputDecoration(
-                  labelText: 'Notify below / above', errorText: error),
+                labelText: 'Notify below / above',
+                errorText: error,
+              ),
             ),
             actions: [
               TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Cancel')),
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
               FilledButton(
                 onPressed: () {
                   // Accept the way people actually type money: "₹200",
@@ -114,8 +134,7 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                       .trim();
                   final v = double.tryParse(cleaned);
                   if (v == null || v <= 0) {
-                    setDialogState(
-                        () => error = 'Enter a number, like 200');
+                    setDialogState(() => error = 'Enter a number, like 200');
                     return;
                   }
                   Navigator.pop(ctx, v);
@@ -129,15 +148,17 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
     );
     if (value != null && _agent != null) {
       await widget.repo.updateAgent(_agent!.copyWith(target: value));
-      await widget.repo
-          .logActivity(widget.agentId, 'Target changed to $value', DateTime.now());
+      await widget.repo.logActivity(
+        widget.agentId,
+        'Target changed to $value',
+        DateTime.now(),
+      );
       _refresh();
     }
   }
 
   Future<void> _setSourcePage() async {
-    final controller =
-        TextEditingController(text: _agent?.sourceUrl ?? '');
+    final controller = TextEditingController(text: _agent?.sourceUrl ?? '');
     final saved = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -147,12 +168,15 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
           autofocus: true,
           keyboardType: TextInputType.url,
           decoration: const InputDecoration(
-              labelText: 'Page link',
-              hintText: 'https://... (leave empty for manual values)'),
+            labelText: 'Page link',
+            hintText: 'https://... (leave empty for manual values)',
+          ),
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, controller.text.trim()),
             child: const Text('Save'),
@@ -162,19 +186,25 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
     );
     if (saved != null && _agent != null) {
       if (saved.isEmpty) {
-        await widget.repo
-            .updateAgent(_agent!.copyWith(clearSourceUrl: true));
-        await widget.repo.logActivity(widget.agentId,
-            'Source page cleared - values update manually', DateTime.now());
+        await widget.repo.updateAgent(_agent!.copyWith(clearSourceUrl: true));
+        await widget.repo.logActivity(
+          widget.agentId,
+          'Source page cleared - values update manually',
+          DateTime.now(),
+        );
       } else {
-        final url = GoalParser.extractUrl(saved) ??
+        final url =
+            GoalParser.extractUrl(saved) ??
             (saved.contains('.') && !saved.contains(' ')
                 ? 'https://$saved'
                 : null);
         if (url == null) return;
         await widget.repo.updateAgent(_agent!.copyWith(sourceUrl: url));
         await widget.repo.logActivity(
-            widget.agentId, 'Source page set to $url', DateTime.now());
+          widget.agentId,
+          'Source page set to $url',
+          DateTime.now(),
+        );
       }
       _refresh();
     }
@@ -188,11 +218,13 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
         content: const Text('This removes the agent and its activity history.'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Delete')),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
         ],
       ),
     );
@@ -212,34 +244,88 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                Wrap(spacing: 8, children: [
-                  Chip(label: Text(a.typeLabel), avatar: const Icon(Icons.tag, size: 16)),
-                  Chip(label: Text(a.statusLabel)),
-                  Chip(
-                    avatar: Icon(
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    Chip(
+                      label: Text(a.typeLabel),
+                      avatar: const Icon(Icons.tag, size: 16),
+                    ),
+                    Chip(label: Text(a.statusLabel)),
+                    Chip(
+                      avatar: Icon(
                         a.notificationEnabled
                             ? Icons.notifications_active
                             : Icons.notifications_off,
-                        size: 16),
-                    label: Text(
-                        a.notificationEnabled ? 'Notifying' : 'Silent'),
-                  ),
-                ]),
+                        size: 16,
+                      ),
+                      label: Text(
+                        a.notificationEnabled ? 'Notifying' : 'Silent',
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 12),
                 _row('Goal', a.originalPrompt),
                 _row('Condition', a.conditionLabel),
-                _row('Check interval', 'every ${a.checkInterval.inMinutes} min'),
+                _row(
+                  'Check interval',
+                  'every ${a.checkInterval.inMinutes} min',
+                ),
                 _row('Created', _fmtTime(a.createdAt)),
-                _row('Last checked',
-                    a.lastCheckedAt == null ? 'Never' : _fmtTime(a.lastCheckedAt!)),
-                _row('Next check',
-                    a.nextCheckAt == null ? '-' : _fmtTime(a.nextCheckAt!)),
+                _row(
+                  'Last checked',
+                  a.lastCheckedAt == null
+                      ? 'Never'
+                      : _fmtTime(a.lastCheckedAt!),
+                ),
+                _row(
+                  'Next check',
+                  a.nextCheckAt == null ? '-' : _fmtTime(a.nextCheckAt!),
+                ),
                 if (a.type == AgentType.valueWatch) ...[
-                  _row('Current value', a.currentValue?.toString() ?? 'Not set'),
+                  _row(
+                    'Current value',
+                    a.currentValue?.toString() ?? 'Not set',
+                  ),
                   _row('Previous value', a.previousValue?.toString() ?? '-'),
-                  _row('Source page',
-                      a.sourceUrl ?? 'Not set - updates stay manual'),
+                  _row(
+                    'Source page',
+                    a.sourceUrl ?? 'Not set - updates stay manual',
+                  ),
                   const SizedBox(height: 4),
+                  if (a.sourceUrl != null &&
+                      PageValueFetcher.bookMyShowApiUrl(a.sourceUrl!) != null)
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.public),
+                      label: const Text('Check in browser (manual)'),
+                      onPressed: () async {
+                        final messenger = ScaffoldMessenger.of(context);
+                        final outcome = await BrowserPriceCheck.read(
+                          a.sourceUrl!,
+                        );
+                        final latest = await widget.repo.agentById(
+                          widget.agentId,
+                        );
+                        if (!mounted ||
+                            latest == null ||
+                            latest.status != AgentStatus.active ||
+                            latest.sourceUrl != a.sourceUrl) {
+                          return;
+                        }
+                        final checker = AgentChecker(
+                          repo: widget.repo,
+                          notifier: widget.checker.notifier,
+                          fetcher: (_) async => outcome,
+                        );
+                        final result = await checker.checkAgent(latest);
+                        if (!mounted) return;
+                        messenger.showSnackBar(
+                          SnackBar(content: Text(result.summary)),
+                        );
+                        await _refresh();
+                      },
+                    ),
                   OutlinedButton.icon(
                     onPressed: _updateValue,
                     icon: const Icon(Icons.edit),
@@ -257,64 +343,88 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                   ),
                 ],
                 const SizedBox(height: 16),
-                Row(children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () async {
-                        final messenger = ScaffoldMessenger.of(context);
-                        final r = await widget.checker.checkAgent(a);
-                        messenger.showSnackBar(SnackBar(
-                            content: Text(r.conditionMet
-                                ? 'Condition met - ${r.summary}'
-                                : 'Checked: ${r.summary}')));
-                        _refresh();
-                      },
-                      icon: const Icon(Icons.play_arrow),
-                      label: const Text('Run now'),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final r = await widget.checker.checkAgent(a);
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                r.conditionMet
+                                    ? 'Condition met - ${r.summary}'
+                                    : 'Checked: ${r.summary}',
+                              ),
+                            ),
+                          );
+                          _refresh();
+                        },
+                        icon: const Icon(Icons.play_arrow),
+                        label: const Text('Run now'),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () async {
-                        await widget.repo.updateAgent(a.copyWith(
-                            status: a.status == AgentStatus.paused
-                                ? AgentStatus.active
-                                : AgentStatus.paused));
-                        _refresh();
-                      },
-                      icon: Icon(a.status == AgentStatus.paused
-                          ? Icons.play_circle
-                          : Icons.pause_circle),
-                      label: Text(
-                          a.status == AgentStatus.paused ? 'Resume' : 'Pause'),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          await widget.repo.updateAgent(
+                            a.copyWith(
+                              status: a.status == AgentStatus.paused
+                                  ? AgentStatus.active
+                                  : AgentStatus.paused,
+                            ),
+                          );
+                          _refresh();
+                        },
+                        icon: Icon(
+                          a.status == AgentStatus.paused
+                              ? Icons.play_circle
+                              : Icons.pause_circle,
+                        ),
+                        label: Text(
+                          a.status == AgentStatus.paused ? 'Resume' : 'Pause',
+                        ),
+                      ),
                     ),
-                  ),
-                ]),
+                  ],
+                ),
                 const SizedBox(height: 8),
                 TextButton.icon(
                   onPressed: _delete,
-                  icon: Icon(Icons.delete,
-                      color: Theme.of(context).colorScheme.error),
-                  label: Text('Delete',
-                      style:
-                          TextStyle(color: Theme.of(context).colorScheme.error)),
+                  icon: Icon(
+                    Icons.delete,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                  label: Text(
+                    'Delete',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 16),
-                Text('Activity history',
-                    style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  'Activity history',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 const SizedBox(height: 8),
                 if (_activity.isEmpty)
                   const Text('No activity yet. Run a check to see the log.')
                 else
-                  ..._activity.map((e) => ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.circle, size: 8),
-                        title: Text(e.message,
-                            style: const TextStyle(fontSize: 13)),
-                        subtitle: Text(_fmtTime(e.timestamp)),
-                      )),
+                  ..._activity.map(
+                    (e) => ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.circle, size: 8),
+                      title: Text(
+                        e.message,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      subtitle: Text(_fmtTime(e.timestamp)),
+                    ),
+                  ),
               ],
             ),
     );
@@ -323,21 +433,27 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
   Widget _row(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        SizedBox(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
             width: 110,
-            child: Text(label,
-                style: TextStyle(
-                    color: Theme.of(context).colorScheme.outline,
-                    fontSize: 13))),
-        Expanded(
-          child: GestureDetector(
-            onLongPress: () =>
-                Clipboard.setData(ClipboardData(text: value)),
-            child: Text(value, style: const TextStyle(fontSize: 13)),
+            child: Text(
+              label,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.outline,
+                fontSize: 13,
+              ),
+            ),
           ),
-        ),
-      ]),
+          Expanded(
+            child: GestureDetector(
+              onLongPress: () => Clipboard.setData(ClipboardData(text: value)),
+              child: Text(value, style: const TextStyle(fontSize: 13)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

@@ -67,8 +67,9 @@ class PageValueFetcher {
     final uri = Uri.tryParse(pageUrl);
     if (uri == null ||
         uri.scheme != 'https' ||
-        uri.host.toLowerCase() != 'in.bookmyshow.com')
+        uri.host.toLowerCase() != 'in.bookmyshow.com') {
       return null;
+    }
     final m = _bmsSeatLayout.firstMatch(pageUrl);
     if (m == null) return null;
     return 'https://in.bookmyshow.com/api/movies-data/seatlayout/v1/primary'
