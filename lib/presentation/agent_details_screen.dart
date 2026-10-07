@@ -198,8 +198,16 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
             (saved.contains('.') && !saved.contains(' ')
                 ? 'https://$saved'
                 : null);
-        if (url == null) return;
-        await widget.repo.updateAgent(_agent!.copyWith(sourceUrl: url));
+        final issue = url == null
+            ? 'Enter a valid page link.'
+            : PageValueFetcher.sourceIssue(url);
+        if (issue != null) {
+          if (mounted)
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text(issue)));
+          return;
+        }
+        await widget.repo.updateAgent(_agent!.copyWith(sourceUrl: url!));
         await widget.repo.logActivity(
           widget.agentId,
           'Source page set to $url',
@@ -266,6 +274,19 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
+                if (a.sourceUrl != null &&
+                    PageValueFetcher.sourceIssue(a.sourceUrl!) != null)
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Text(
+                        PageValueFetcher.sourceIssue(a.sourceUrl!)!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ),
+                  ),
                 _row('Goal', a.originalPrompt),
                 _row('Condition', a.conditionLabel),
                 _row(

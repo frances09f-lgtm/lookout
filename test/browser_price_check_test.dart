@@ -34,7 +34,10 @@ void main() {
             }),
           });
         });
-    final result = await BrowserPriceCheck.read(url);
+    final result = await BrowserPriceCheck.read(
+      url,
+      now: DateTime.utc(2026, 10, 7, 12),
+    );
     expect(result.ok, true);
     expect(result.value, 100);
   });
@@ -44,14 +47,26 @@ void main() {
           channel,
           (_) async => jsonEncode({'status': 403, 'body': 'challenge'}),
         );
-    expect((await BrowserPriceCheck.read(url)).ok, false);
+    expect(
+      (await BrowserPriceCheck.read(
+        url,
+        now: DateTime.utc(2026, 10, 7, 12),
+      )).ok,
+      false,
+    );
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
           channel,
           (_) async =>
               throw PlatformException(code: 'cancelled', message: 'Cancelled'),
         );
-    expect((await BrowserPriceCheck.read(url)).value, isNull);
+    expect(
+      (await BrowserPriceCheck.read(
+        url,
+        now: DateTime.utc(2026, 10, 7, 12),
+      )).value,
+      isNull,
+    );
   });
   test('expired session and spoofed host fail', () async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -73,7 +88,13 @@ void main() {
             }),
           }),
         );
-    expect((await BrowserPriceCheck.read(url)).value, isNull);
+    expect(
+      (await BrowserPriceCheck.read(
+        url,
+        now: DateTime.utc(2026, 10, 7, 12),
+      )).value,
+      isNull,
+    );
     expect(
       (await BrowserPriceCheck.read(
         'https://evilbookmyshow.com/movies/c/seat-layout/ET1/V/1/20261007',

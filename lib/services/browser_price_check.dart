@@ -8,7 +8,9 @@ import 'page_fetch.dart';
 class BrowserPriceCheck {
   static const _channel = MethodChannel('lookout/browser');
 
-  static Future<FetchOutcome> read(String url) async {
+  static Future<FetchOutcome> read(String url, {DateTime? now}) async {
+    final issue = PageValueFetcher.sourceIssue(url, now: now);
+    if (issue != null) return FetchOutcome.failed(issue);
     final api = PageValueFetcher.bookMyShowApiUrl(url);
     if (api == null) {
       return FetchOutcome.failed('Not a supported BookMyShow show link');

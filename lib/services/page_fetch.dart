@@ -61,6 +61,36 @@ class PageValueFetcher {
     caseSensitive: false,
   );
 
+  /// Guard exact show identity before any network read. Dates are compared
+  /// in India, where BookMyShow's dateCode is a calendar day.
+  static String? sourceIssue(String url, {DateTime? now}) {
+    final uri = Uri.tryParse(url);
+    if (uri == null ||
+        !['https', 'http'].contains(uri.scheme) ||
+        uri.host.isEmpty) {
+      return 'Enter a valid page link.';
+    }
+    if (uri.host.toLowerCase() != 'in.bookmyshow.com') return null;
+    final m = _bmsSeatLayout.firstMatch(url);
+    if (m == null || bookMyShowApiUrl(url) == null) {
+      return 'This is not an exact BookMyShow show link. Open your cinema, date and showtime, then copy the seat-layout link and use Set source page. A movies listing cannot give this watch a ticket price.';
+    }
+    final code = m.group(4)!;
+    final year = int.parse(code.substring(0, 4)),
+        month = int.parse(code.substring(4, 6)),
+        day = int.parse(code.substring(6, 8));
+    final date = DateTime.utc(year, month, day);
+    if (date.year != year || date.month != month || date.day != day)
+      return 'The show link contains an invalid date. Set the exact show link again.';
+    final india = (now ?? DateTime.now()).toUtc().add(
+      const Duration(hours: 5, minutes: 30),
+    );
+    final today = DateTime.utc(india.year, india.month, india.day);
+    if (date.isBefore(today))
+      return 'This show link is for $day/$month/$year, a past date. Open the date and showtime you want and set its exact seat-layout link. Lookout will not switch shows automatically.';
+    return null;
+  }
+
   /// Maps a BookMyShow seat-layout page URL to the JSON endpoint the page
   /// itself calls. Null for any other URL.
   static String? bookMyShowApiUrl(String pageUrl) {
@@ -149,6 +179,8 @@ class PageValueFetcher {
   /// (the phone's radio or DNS still waking up when a background check
   /// fires) get short retries before we give up honestly.
   static Future<FetchOutcome> fetchValue(String url) async {
+    final issue = sourceIssue(url);
+    if (issue != null) return FetchOutcome.failed(issue);
     FetchOutcome outcome = FetchOutcome.failed('not attempted');
     for (var attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) {
@@ -201,7 +233,9 @@ class PageValueFetcher {
     final text = htmlToText(body);
     final value = extractValue(text);
     if (value == null) {
-      return FetchOutcome.failed('No price or value found on $host');
+      return FetchOutcome.failed(
+        'No readable price found on $host. Set a page showing the exact item/show price, or update the value manually; no price was guessed.',
+      );
     }
     return FetchOutcome.found(value, 'Found $value on $host');
   }
