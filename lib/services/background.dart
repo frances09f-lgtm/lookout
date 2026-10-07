@@ -38,8 +38,10 @@ class BackgroundScheduler {
       checkTaskName,
       checkTaskName,
       frequency: const Duration(minutes: 15),
-      constraints: Constraints(
-          networkType: NetworkType.notRequired), // V1 checks need no network
+      // Value watches fetch real pages: only run when the device actually
+      // has network, otherwise the fetch fails with a fake "host lookup"
+      // error and the cycle is wasted.
+      constraints: Constraints(networkType: NetworkType.connected),
       existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
     );
   }

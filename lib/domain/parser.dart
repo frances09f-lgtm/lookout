@@ -69,7 +69,8 @@ class GoalParser {
       r'\b(?:below|above|under|over|less than|more than|cheaper than|'
       r'costlier than|drops?\s+(?:to|below)|falls?\s+(?:to|below)|'
       r'go(?:es)?\s+(?:below|above|under|over)|rises?\s+(?:above|over)|'
-      r'crosses?|reaches?)\s*(?:₹|\$|rs\.?|inr|usd)?\s*([0-9][0-9,]*(?:\.\d+)?)',
+      r'crosses?|reaches?|comes?\s+(?:below|under)|down\s+to|'
+      r'target\s*(?:of)?|limit\s*(?:of)?)\s*(?:₹|\$|rs\.?|inr|usd)?\s*([0-9][0-9,]*(?:\.\d+)?)',
       caseSensitive: false);
 
   static final _url = RegExp(
@@ -114,9 +115,12 @@ class GoalParser {
     if (_priceWords.any(lower.contains)) {
       final cleaned = lower.replaceAll(',', '');
       final cm = _conditionNumber.firstMatch(cleaned);
-      final numText = cm?.group(1) ?? _money.firstMatch(cleaned)?.group(1);
-      if (numText == null) return ParsedGoal.unclear();
-      final target = double.tryParse(numText);
+      // Never fall back to "the first number in the text": that is how a
+      // digit in the watched thing's own name ("Jolly LLB 3", "iPhone 16")
+      // once became the target. No comparison number, no watch - ask the
+      // user for a real threshold.
+      if (cm == null) return ParsedGoal.unclear();
+      final target = double.tryParse(cm.group(1)!);
       if (target == null) return ParsedGoal.unclear();
       final above = lower.contains('goes above') ||
           lower.contains('rises above') ||

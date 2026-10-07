@@ -67,8 +67,25 @@ class PageValueFetcher {
   }
 
   /// Fetches [url] and extracts a value. Never throws: failures come back as
-  /// honest FetchOutcome.failed descriptions.
+  /// honest FetchOutcome.failed descriptions. Transient network failures
+  /// (the phone's radio or DNS still waking up when a background check
+  /// fires) get short retries before we give up honestly.
   static Future<FetchOutcome> fetchValue(String url) async {
+    FetchOutcome outcome = FetchOutcome.failed('not attempted');
+    for (var attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) {
+        await Future.delayed(Duration(seconds: attempt == 1 ? 2 : 6));
+      }
+      outcome = await _fetchValueOnce(url);
+      if (outcome.value != null) return outcome;
+      final transient = outcome.detail.contains('Could not reach') ||
+          outcome.detail.contains('timed out');
+      if (!transient) return outcome;
+    }
+    return outcome;
+  }
+
+  static Future<FetchOutcome> _fetchValueOnce(String url) async {
     String host = url;
     final uri = Uri.tryParse(url);
     if (uri == null || !uri.hasScheme || uri.host.isEmpty) {

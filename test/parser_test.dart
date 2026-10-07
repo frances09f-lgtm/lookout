@@ -43,4 +43,35 @@ void main() {
   test('gibberish is unclear', () {
     expect(GoalParser.parse('asdf qwer').outcome, ParseOutcome.unclear);
   });
+
+  // v4 regression (user bug report, Lookout card showed "drops below 3"
+  // when the intended target was 200): the parser must never turn a digit
+  // in the watched thing's own name into the target. "Movie 3" below is
+  // an illustrative name, not the user's actual movie.
+  group('v4 target misparsing', () {
+    test('name digit is not the target; the comparison number is', () {
+      final p = GoalParser.parse(
+          'movie 3 ticket price at fortune cineplex ichalkaranji, alert me when it comes below 200');
+      expect(p.outcome, ParseOutcome.ok);
+      expect(p.target, 200);
+    });
+
+    test('target phrasing without a classic comparison word still works', () {
+      final p = GoalParser.parse(
+          'ticket price for movie 3 at fortune cineplex, target 200');
+      expect(p.outcome, ParseOutcome.ok);
+      expect(p.target, 200);
+    });
+
+    test('down to phrasing works', () {
+      final p = GoalParser.parse('gold price down to 4100');
+      expect(p.outcome, ParseOutcome.ok);
+      expect(p.target, 4100);
+    });
+
+    test('no comparison number at all: unclear, never a guessed target', () {
+      final p = GoalParser.parse('movie 3 ticket price at fortune cineplex');
+      expect(p.outcome, isNot(ParseOutcome.ok));
+    });
+  });
 }
