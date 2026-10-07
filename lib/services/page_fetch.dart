@@ -47,6 +47,81 @@ class PageValueFetcher {
     return v;
   }
 
+
+  /// BookMyShow seat-layout pages draw seats and prices with JavaScript
+  /// (canvas), so a plain HTML fetch never contains the ticket price. The
+  /// page itself loads prices from a JSON endpoint - verified against a live
+  /// Ichalkaranji show on 2026-10-07 - so watches on those URLs read that
+  /// endpoint instead of scraping HTML.
+  /// Shape: data.showTimes[].sessionId + .showTime + .categories[].curPrice/.priceDesc
+  static final _bmsSeatLayout = RegExp(
+      r'bookmyshow\.com/movies/[^/]+/seat-layout/'
+      r'([A-Za-z0-9]+)/([A-Za-z0-9]+)/(\d+)/(\d{8})',
+      caseSensitive: false);
+
+  /// Maps a BookMyShow seat-layout page URL to the JSON endpoint the page
+  /// itself calls. Null for any other URL.
+  static String? bookMyShowApiUrl(String pageUrl) {
+    final m = _bmsSeatLayout.firstMatch(pageUrl);
+    if (m == null) return null;
+    return 'https://in.bookmyshow.com/api/movies-data/seatlayout/v1/primary'
+        '?eventCode=${m.group(1)}&dateCode=${m.group(4)}&venueCode=${m.group(2)}';
+  }
+
+  /// Session id embedded in a seat-layout page URL.
+  static String? bookMyShowSessionId(String pageUrl) =>
+      _bmsSeatLayout.firstMatch(pageUrl)?.group(3);
+
+  /// Reads the lowest current ticket price from seat-layout JSON.
+  /// Uses the show whose sessionId matches the watched URL; if it is absent,
+  /// falls back to the first show and names its time in the detail so the
+  /// value is never silently from the wrong show.
+  /// Returns (price, category detail) or null when there is no price.
+  static (double, String)? extractBookMyShowPrice(String jsonBody,
+      {String? sessionId}) {
+    Object? decoded;
+    try {
+      decoded = jsonDecode(jsonBody);
+    } catch (_) {
+      return null;
+    }
+    if (decoded is! Map) return null;
+    final data = decoded['data'];
+    if (data is! Map) return null;
+    final shows = data['showTimes'];
+    if (shows is! List || shows.isEmpty) return null;
+    Map? show;
+    var fellBack = false;
+    for (final s in shows) {
+      if (s is Map && s['sessionId']?.toString() == sessionId) {
+        show = s;
+        break;
+      }
+    }
+    if (show == null) {
+      if (shows.first is! Map) return null;
+      show = shows.first as Map;
+      fellBack = sessionId != null;
+    }
+    final cats = show['categories'];
+    if (cats is! List || cats.isEmpty) return null;
+    final prices = <String, double>{};
+    for (final c in cats) {
+      if (c is! Map) continue;
+      final v = double.tryParse(c['curPrice']?.toString() ?? '');
+      if (v == null || v <= 0) continue;
+      prices[c['priceDesc']?.toString() ?? 'Category'] = v;
+    }
+    if (prices.isEmpty) return null;
+    final lowest = prices.values.reduce((a, b) => a < b ? a : b);
+    final parts = prices.entries
+        .map((e) => '${e.key} ₹${e.value.toStringAsFixed(0)}')
+        .join(', ');
+    final time = show['showTime']?.toString();
+    final scope = fellBack && time != null ? ' ($time show)' : '';
+    return (lowest, '$parts$scope');
+  }
+
   /// Converts raw HTML into readable text: drops scripts/styles/tags,
   /// decodes the most common entities, collapses whitespace.
   static String htmlToText(String html) {
@@ -92,12 +167,45 @@ class PageValueFetcher {
       return FetchOutcome.failed('The page link "$url" is not a valid URL');
     }
     host = uri.host;
+
+    // BookMyShow seat-layout pages: prices only exist in their JSON feed.
+    final bmsApi = bookMyShowApiUrl(url);
+    if (bmsApi != null) {
+      final raw = await _fetchBody(bmsApi);
+      if (raw.error != null) return FetchOutcome.failed(raw.error!);
+      final hit = extractBookMyShowPrice(raw.body!,
+          sessionId: bookMyShowSessionId(url));
+      if (hit != null) {
+        return FetchOutcome.found(hit.$1,
+            'Found ₹${hit.$1.toStringAsFixed(0)} (${hit.$2}) on bookmyshow.com');
+      }
+      return FetchOutcome.failed(
+          'BookMyShow returned no ticket prices for this show on $host');
+    }
+
+    final raw = await _fetchBody(url);
+    if (raw.error != null) return FetchOutcome.failed(raw.error!);
+    final body = raw.body!;
+    if (body.length > 2000000) {
+      return FetchOutcome.failed('Page from $host was too large to read');
+    }
+    final text = htmlToText(body);
+    final value = extractValue(text);
+    if (value == null) {
+      return FetchOutcome.failed('No price or value found on $host');
+    }
+    return FetchOutcome.found(value, 'Found $value on $host');
+  }
+
+  /// Plain GET of [url]; returns the body or an honest error description.
+  static Future<({String? body, String? error})> _fetchBody(String url) async {
+    final uri = Uri.parse(url);
+    final host = uri.host;
     final client = HttpClient();
     client.connectionTimeout = const Duration(seconds: 15);
     try {
-      final request = await client
-          .getUrl(uri)
-          .timeout(const Duration(seconds: 20));
+      final request =
+          await client.getUrl(uri).timeout(const Duration(seconds: 20));
       request.headers.set(HttpHeaders.userAgentHeader,
           'Mozilla/5.0 (Linux; Android) Lookout/1.0');
       request.followRedirects = true;
@@ -105,30 +213,24 @@ class PageValueFetcher {
       final response =
           await request.close().timeout(const Duration(seconds: 20));
       if (response.statusCode < 200 || response.statusCode >= 400) {
-        return FetchOutcome.failed(
-            'Could not fetch page (HTTP ${response.statusCode}) from $host');
+        return (
+          body: null,
+          error: 'Could not fetch page (HTTP ${response.statusCode}) from $host'
+        );
       }
       final body = await response
           .transform(utf8.decoder)
           .join()
           .timeout(const Duration(seconds: 20));
-      if (body.length > 2000000) {
-        return FetchOutcome.failed('Page from $host was too large to read');
-      }
-      final text = htmlToText(body);
-      final value = extractValue(text);
-      if (value == null) {
-        return FetchOutcome.failed('No price or value found on $host');
-      }
-      return FetchOutcome.found(value, 'Found $value on $host');
+      return (body: body, error: null);
     } on TimeoutException {
-      return FetchOutcome.failed('Fetching $host timed out');
+      return (body: null, error: 'Fetching $host timed out');
     } on SocketException catch (e) {
-      return FetchOutcome.failed('Could not reach $host (${e.message})');
+      return (body: null, error: 'Could not reach $host (${e.message})');
     } on HandshakeException {
-      return FetchOutcome.failed('Secure connection to $host failed');
+      return (body: null, error: 'Secure connection to $host failed');
     } catch (e) {
-      return FetchOutcome.failed('Fetching $host failed ($e)');
+      return (body: null, error: 'Fetching $host failed ($e)');
     } finally {
       client.close(force: true);
     }

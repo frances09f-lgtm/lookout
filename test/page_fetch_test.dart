@@ -47,4 +47,54 @@ void main() {
           180);
     });
   });
+
+  group('BookMyShow seat-layout support', () {
+    const watchUrl =
+        'https://in.bookmyshow.com/movies/ichalkaranji/seat-layout/ET00507738/frts/33328/20261007';
+    // Real response shape captured from in.bookmyshow.com on 2026-10-07.
+    const liveJson = '{"data":{"meta":{"version":23},"eventData":'
+        '{"eventTitle":"Hanuman Ansh"},"showTimes":[{"sessionId":"33328",'
+        '"showTime":"07:00 PM","availStatus":"0","categories":'
+        '[{"priceCode":"0003","curPrice":"100.00","priceDesc":"CLUB"},'
+        '{"priceCode":"0004","curPrice":"100.00","priceDesc":"GOLD"}]}]}}';
+
+    test('maps a seat-layout watch URL to the JSON endpoint', () {
+      expect(PageValueFetcher.bookMyShowApiUrl(watchUrl),
+          'https://in.bookmyshow.com/api/movies-data/seatlayout/v1/primary'
+          '?eventCode=ET00507738&dateCode=20261007&venueCode=frts');
+      expect(PageValueFetcher.bookMyShowSessionId(watchUrl), '33328');
+    });
+
+    test('ignores non-BookMyShow URLs', () {
+      expect(PageValueFetcher.bookMyShowApiUrl('https://example.com/p'), isNull);
+      expect(PageValueFetcher.bookMyShowApiUrl('https://in.bookmyshow.com/movies'), isNull);
+    });
+
+    test('reads the lowest category price for the matching session', () {
+      final hit =
+          PageValueFetcher.extractBookMyShowPrice(liveJson, sessionId: '33328');
+      expect(hit, isNotNull);
+      expect(hit!.$1, 100.0);
+      expect(hit.$2, contains('CLUB'));
+      expect(hit.$2, contains('GOLD'));
+    });
+
+    test('falls back to the first show and names its time', () {
+      final hit =
+          PageValueFetcher.extractBookMyShowPrice(liveJson, sessionId: '99999');
+      expect(hit, isNotNull);
+      expect(hit!.$1, 100.0);
+      expect(hit.$2, contains('07:00 PM show'));
+    });
+
+    test('never invents a price from bad payloads', () {
+      expect(PageValueFetcher.extractBookMyShowPrice('not json'), isNull);
+      expect(PageValueFetcher.extractBookMyShowPrice('{"data":{}}'), isNull);
+      expect(
+          PageValueFetcher.extractBookMyShowPrice(
+              '{"data":{"showTimes":[{"sessionId":"1","categories":[]}]}}'),
+          isNull);
+    });
+  });
+
 }
