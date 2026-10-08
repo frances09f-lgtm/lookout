@@ -1,0 +1,3 @@
+import 'dart:io';
+import 'package:flutter_test/flutter_test.dart';
+void main(){test('read-only bridge is restricted to Friday and opens actual local database',(){final s=File('android/app/src/main/kotlin/com/ambi/lookout/LookoutBridgeProvider.kt').readAsStringSync();expect(s,contains('getPackagesForUid(Binder.getCallingUid())'));expect(s,contains('packages.contains("com.friday.assistant")'));expect(s,contains('SQLiteDatabase.OPEN_READONLY'));expect(s,contains('getDatabasePath("lookout.db")'));expect(s,contains('lastCheckedAt'));expect(s,contains('override fun update'));expect(s,contains('= 0'));final m=File('android/app/src/main/AndroidManifest.xml').readAsStringSync();expect(m,contains('com.ambi.lookout.bridge'));});}
