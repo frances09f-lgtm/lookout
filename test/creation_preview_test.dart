@@ -21,8 +21,9 @@ void main() {
     });
     await t.runAsync(() async {
       final f = File(
-        '/home/sandbox/flutter/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+        '${Platform.environment['FLUTTER_ROOT'] ?? '/home/sandbox/flutter'}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
       );
+      if (!await f.exists()) return;
       final loader = FontLoader('MaterialIcons')
         ..addFont(Future.value(ByteData.sublistView(await f.readAsBytes())));
       await loader.load();
