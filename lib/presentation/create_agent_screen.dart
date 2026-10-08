@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/agent_repository.dart';
 import '../domain/agent.dart';
 import '../domain/parser.dart';
+import '../services/gold_quote.dart';
 
 class CreateAgentScreen extends StatefulWidget {
   final AgentRepository repo;
@@ -38,15 +39,17 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
   @override
   void initState() {
     super.initState();
-    _controller.addListener(() => setState(() {
-          final text = _controller.text.trim();
-          _parsed = text.isEmpty ? null : GoalParser.parse(text);
-          final u = _parsed?.sourceUrl;
-          if (u != null && u != _lastAutoUrl) {
-            _urlController.text = u;
-            _lastAutoUrl = u;
-          }
-        }));
+    _controller.addListener(
+      () => setState(() {
+        final text = _controller.text.trim();
+        _parsed = text.isEmpty ? null : GoalParser.parse(text);
+        final u = _parsed?.sourceUrl;
+        if (u != null && u != _lastAutoUrl) {
+          _urlController.text = u;
+          _lastAutoUrl = u;
+        }
+      }),
+    );
   }
 
   @override
@@ -60,32 +63,32 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
     final typed = _urlController.text.trim();
     if (typed.isEmpty) return null;
     return GoalParser.extractUrl(typed) ??
-        (typed.contains('.') && !typed.contains(' ')
-            ? 'https://$typed'
-            : null);
+        (typed.contains('.') && !typed.contains(' ') ? 'https://$typed' : null);
   }
 
   String _intervalLabel(Duration d) => d.inMinutes < 60
       ? '${d.inMinutes} min'
       : d.inHours < 24
-          ? '${d.inHours} h'
-          : '${d.inDays} day';
+      ? '${d.inHours} h'
+      : '${d.inDays} day';
 
   Future<void> _create() async {
     final p = _parsed;
     if (p == null || p.outcome != ParseOutcome.ok) return;
-    await widget.repo.insertAgent(Agent(
-      title: p.title,
-      originalPrompt: _controller.text.trim(),
-      type: p.type!,
-      status: AgentStatus.active,
-      createdAt: DateTime.now(),
-      nextCheckAt: DateTime.now(),
-      checkInterval: _interval,
-      condition: p.condition!,
-      target: p.target!,
-      sourceUrl: _sourceUrl,
-    ));
+    await widget.repo.insertAgent(
+      Agent(
+        title: p.title,
+        originalPrompt: _controller.text.trim(),
+        type: p.type!,
+        status: AgentStatus.active,
+        createdAt: DateTime.now(),
+        nextCheckAt: DateTime.now(),
+        checkInterval: _interval,
+        condition: p.condition!,
+        target: p.target!,
+        sourceUrl: _sourceUrl,
+      ),
+    );
     if (mounted) Navigator.of(context).pop();
   }
 
@@ -107,23 +110,28 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          TextField(
-            controller: _urlController,
-            keyboardType: TextInputType.url,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              labelText: 'Page link to fetch the value from (optional)',
-              hintText: 'https://...',
-            ),
-          ),
-          const SizedBox(height: 12),
-          Wrap(spacing: 8, runSpacing: 4, children: [
-            for (final s in suggestions)
-              ActionChip(
-                label: Text(s, style: const TextStyle(fontSize: 12)),
-                onPressed: () => _controller.text = s,
+          if (!GoldQuote.isGold(_controller.text))
+            TextField(
+              controller: _urlController,
+              keyboardType: TextInputType.url,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'Page link to fetch the value from (optional)',
+                hintText: 'https://...',
               ),
-          ]),
+            ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              for (final s in suggestions)
+                ActionChip(
+                  label: Text(s, style: const TextStyle(fontSize: 12)),
+                  onPressed: () => _controller.text = s,
+                ),
+            ],
+          ),
           const SizedBox(height: 16),
           if (p != null && p.outcome == ParseOutcome.needsV2)
             Card(
@@ -138,7 +146,8 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
               child: Padding(
                 padding: EdgeInsets.all(12),
                 child: Text(
-                    'I could not turn that into a check yet. Try a price target ("cheaper than ₹50,000") or a reminder ("remind me in 2 hours").'),
+                  'I could not turn that into a check yet. Try a price target ("cheaper than ₹50,000") or a reminder ("remind me in 2 hours").',
+                ),
               ),
             ),
           if (p != null && p.outcome == ParseOutcome.ok) ...[
@@ -148,40 +157,54 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('I will create this agent:',
-                        style: Theme.of(context).textTheme.titleSmall),
+                    Text(
+                      'I will create this agent:',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
                     const SizedBox(height: 8),
-                    Text('Type: ${p.type == AgentType.reminder ? 'Reminder' : 'Value watch'}'),
+                    Text(
+                      'Type: ${p.type == AgentType.reminder ? 'Reminder' : 'Value watch'}',
+                    ),
                     Text('Title: ${p.title}'),
                     if (p.type == AgentType.reminder)
                       Text(
-                          'Fires: ${DateTime.fromMillisecondsSinceEpoch(p.target!.round())}'),
+                        'Fires: ${DateTime.fromMillisecondsSinceEpoch(p.target!.round())}',
+                      ),
                     if (p.type == AgentType.valueWatch)
                       Text(
-                          'Condition: ${p.condition == WatchCondition.lessThan ? 'below' : 'above'} ${p.target}'),
+                        'Parsed threshold: ${p.condition == WatchCondition.lessThan ? 'below' : 'above'} ${p.target}',
+                      ),
                     if (p.type == AgentType.valueWatch)
                       Text(
-                          _sourceUrl != null
-                              ? 'Lookout fetches the current value from that page on every check.'
-                              : 'No page link given - add one above and Lookout fetches the value itself, or update the value manually on the agent page.',
-                          style: const TextStyle(fontSize: 12)),
+                        GoldQuote.isGold(_controller.text)
+                            ? 'Gold uses Swissquote XAU/USD mid in USD per oz, the same quote source as Sona. Checks require a quote no older than 5 minutes.'
+                            : _sourceUrl != null
+                            ? 'Lookout fetches the current value from that page on every check.'
+                            : 'No page link given - add one above and Lookout fetches the value itself, or update the value manually on the agent page.',
+                        style: const TextStyle(fontSize: 12),
+                      ),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 8),
-            Row(children: [
-              const Text('Check every'),
-              const SizedBox(width: 12),
-              DropdownButton<Duration>(
-                value: _interval,
-                items: [
-                  for (final d in _intervals)
-                    DropdownMenuItem(value: d, child: Text(_intervalLabel(d))),
-                ],
-                onChanged: (d) => setState(() => _interval = d!),
-              ),
-            ]),
+            Row(
+              children: [
+                const Text('Check every'),
+                const SizedBox(width: 12),
+                DropdownButton<Duration>(
+                  value: _interval,
+                  items: [
+                    for (final d in _intervals)
+                      DropdownMenuItem(
+                        value: d,
+                        child: Text(_intervalLabel(d)),
+                      ),
+                  ],
+                  onChanged: (d) => setState(() => _interval = d!),
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: _create,

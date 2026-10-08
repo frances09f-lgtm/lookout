@@ -12,6 +12,7 @@ import '../data/agent_repository.dart';
 import '../domain/agent.dart';
 import 'notifications.dart';
 import 'page_fetch.dart';
+import 'gold_quote.dart';
 import 'usage_reporter.dart';
 
 class CheckResult {
@@ -26,6 +27,7 @@ class AgentChecker {
   final DateTime Function() now;
   final Future<FetchOutcome> Function(String url) fetcher;
   final String readMethod;
+  final Future<FetchOutcome> Function() goldFetcher;
 
   AgentChecker({
     required this.repo,
@@ -33,8 +35,10 @@ class AgentChecker {
     DateTime Function()? clock,
     Future<FetchOutcome> Function(String url)? fetcher,
     this.readMethod = 'Automatic page read',
+    Future<FetchOutcome> Function()? goldFetcher,
   }) : now = clock ?? DateTime.now,
-       fetcher = fetcher ?? PageValueFetcher.fetchValue;
+       fetcher = fetcher ?? PageValueFetcher.fetchValue,
+       goldFetcher = goldFetcher ?? GoldQuote.fetch;
 
   /// Background entry point: check every due active agent.
   Future<int> checkDueAgents() async {
@@ -60,6 +64,9 @@ class AgentChecker {
     double? newCurrent = agent.currentValue;
     bool currentChanged = false;
     bool successfulRead = false;
+    final gold =
+        agent.type == AgentType.valueWatch &&
+        GoldQuote.isGold(agent.originalPrompt);
     switch (agent.type) {
       case AgentType.reminder:
         final dueAt = DateTime.fromMillisecondsSinceEpoch(agent.target.round());
@@ -67,8 +74,10 @@ class AgentChecker {
         detail = met ? 'Due time reached' : 'Not due yet';
         break;
       case AgentType.valueWatch:
-        if (agent.sourceUrl != null) {
-          final outcome = await fetcher(agent.sourceUrl!);
+        if (gold || agent.sourceUrl != null) {
+          final outcome = gold
+              ? await goldFetcher()
+              : await fetcher(agent.sourceUrl!);
           UsageReporter.report('watch_fetch');
           if (outcome.ok && outcome.value != null) {
             successfulRead = true;
@@ -111,8 +120,12 @@ class AgentChecker {
       lastCheckedAt: at,
       lastSuccessfulReadAt: successfulRead ? at : null,
       lastSuccessfulValue: successfulRead ? newCurrent : null,
-      lastReadMethod: successfulRead ? readMethod : null,
-      lastReadSourceUrl: successfulRead ? agent.sourceUrl : null,
+      lastReadMethod: successfulRead
+          ? (gold ? 'Swissquote XAU/USD mid USD/oz' : readMethod)
+          : null,
+      lastReadSourceUrl: successfulRead
+          ? (gold ? GoldQuote.url : agent.sourceUrl)
+          : null,
       nextCheckAt: at.add(agent.checkInterval),
       currentValue: newCurrent,
       previousValue: currentChanged ? agent.currentValue : agent.previousValue,
