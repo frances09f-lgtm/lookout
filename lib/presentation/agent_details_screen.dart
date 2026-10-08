@@ -8,6 +8,8 @@ import '../domain/parser.dart';
 import '../services/checker.dart';
 import '../services/browser_price_check.dart';
 import '../services/page_fetch.dart';
+import '../services/source_discovery.dart';
+import '../services/gold_quote.dart';
 
 class AgentDetailsScreen extends StatefulWidget {
   final AgentRepository repo;
@@ -158,6 +160,50 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
         DateTime.now(),
       );
       _refresh();
+    }
+  }
+
+  Future<void> _findSource() async {
+    final a = _agent;
+    if (a == null) return;
+    String? retailer;
+    if (!SourceDiscovery.movie(a.originalPrompt))
+      retailer = await showDialog<String>(
+        context: context,
+        builder: (ctx) => SimpleDialog(
+          title: const Text('Find a product source'),
+          children: [
+            for (final name in ['Flipkart', 'Amazon'])
+              SimpleDialogOption(
+                onPressed: () => Navigator.pop(ctx, name),
+                child: Text(name),
+              ),
+          ],
+        ),
+      );
+    if (!SourceDiscovery.movie(a.originalPrompt) && retailer == null) return;
+    try {
+      final url = await SourceDiscovery.pick(
+        a.originalPrompt,
+        retailer: retailer,
+      );
+      if (url == null) return;
+      final latest = await widget.repo.agentById(widget.agentId);
+      if (latest == null) return;
+      await widget.repo.updateAgent(latest.copyWith(sourceUrl: url));
+      await widget.repo.logActivity(
+        widget.agentId,
+        'Exact source selected in browser: $url',
+        DateTime.now(),
+      );
+      await _refresh();
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Source selection not completed. No source changed.'),
+          ),
+        );
     }
   }
 
@@ -413,6 +459,12 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                     icon: const Icon(Icons.adjust),
                     label: const Text('Edit target'),
                   ),
+                  if (!GoldQuote.isGold(a.originalPrompt))
+                    OutlinedButton.icon(
+                      onPressed: _findSource,
+                      icon: const Icon(Icons.search),
+                      label: const Text('Find source without a link'),
+                    ),
                   OutlinedButton.icon(
                     onPressed: _setSourcePage,
                     icon: const Icon(Icons.link),

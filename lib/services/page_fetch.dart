@@ -342,6 +342,15 @@ class PageValueFetcher {
         'Product page from $host has no unambiguous current offer price. MRP and related product prices were not used',
       );
     }
+    if ([
+      'www.amazon.in',
+      'amazon.in',
+      'www.flipkart.com',
+      'flipkart.com',
+    ].contains(uri.host))
+      return FetchOutcome.failed(
+        'Retailer has no product-bound offer price. Search cards, MRP, EMI and related products were not used',
+      );
     if (body.length > 2000000)
       return FetchOutcome.failed(
         'Large page from $host has no product offer data. No price was guessed',

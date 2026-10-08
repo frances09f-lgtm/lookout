@@ -4,6 +4,7 @@ import '../data/agent_repository.dart';
 import '../domain/agent.dart';
 import '../domain/parser.dart';
 import '../services/gold_quote.dart';
+import '../services/source_discovery.dart';
 
 class CreateAgentScreen extends StatefulWidget {
   final AgentRepository repo;
@@ -66,6 +67,41 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
         (typed.contains('.') && !typed.contains(' ') ? 'https://$typed' : null);
   }
 
+  Future<void> findSource() async {
+    String? retailer;
+    if (!SourceDiscovery.movie(_controller.text))
+      retailer = await showDialog<String>(
+        context: context,
+        builder: (ctx) => SimpleDialog(
+          title: const Text('Find a product source'),
+          children: [
+            for (final name in ['Flipkart', 'Amazon'])
+              SimpleDialogOption(
+                onPressed: () => Navigator.pop(ctx, name),
+                child: Text(name),
+              ),
+          ],
+        ),
+      );
+    if (!SourceDiscovery.movie(_controller.text) && retailer == null) return;
+    try {
+      final url = await SourceDiscovery.pick(
+        _controller.text,
+        retailer: retailer,
+      );
+      if (url != null && mounted) setState(() => _urlController.text = url);
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Source selection not completed. Choose an exact page or keep a manual watch.',
+            ),
+          ),
+        );
+    }
+  }
+
   String _intervalLabel(Duration d) => d.inMinutes < 60
       ? '${d.inMinutes} min'
       : d.inHours < 24
@@ -119,6 +155,23 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
                 labelText: 'Page link to fetch the value from (optional)',
                 hintText: 'https://...',
               ),
+            ),
+          if (_parsed?.type == AgentType.valueWatch &&
+              !GoldQuote.isGold(_controller.text))
+            OutlinedButton.icon(
+              onPressed: findSource,
+              icon: const Icon(Icons.search),
+              label: Text(
+                SourceDiscovery.movie(_controller.text)
+                    ? 'Find cinema / show source'
+                    : 'Find product source',
+              ),
+            ),
+          if (_parsed?.type == AgentType.valueWatch &&
+              !GoldQuote.isGold(_controller.text))
+            const Text(
+              'No link to paste: open a known source and confirm the exact product or dated show. Site blocks may still prevent background price reads.',
+              style: TextStyle(fontSize: 12),
             ),
           const SizedBox(height: 12),
           Wrap(
@@ -180,7 +233,7 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
                             ? 'Gold uses Swissquote XAU/USD mid in USD per oz, the same quote source as Sona. Checks require a quote no older than 5 minutes.'
                             : _sourceUrl != null
                             ? 'Lookout fetches the current value from that page on every check.'
-                            : 'No page link given - add one above and Lookout fetches the value itself, or update the value manually on the agent page.',
+                            : 'No source selected - use Find source above without copying a link, or update the value manually. Source selection does not guarantee the site permits background price reads.',
                         style: const TextStyle(fontSize: 12),
                       ),
                   ],
