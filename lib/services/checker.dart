@@ -40,15 +40,23 @@ class AgentChecker {
        fetcher = fetcher ?? PageValueFetcher.fetchValue,
        goldFetcher = goldFetcher ?? GoldQuote.fetch;
 
+  bool _checkingDue = false;
+
   /// Background entry point: check every due active agent.
   Future<int> checkDueAgents() async {
-    final due = await repo.dueAgents(now());
-    var checked = 0;
-    for (final agent in due) {
-      await checkAgent(agent);
-      checked++;
+    if (_checkingDue) return 0;
+    _checkingDue = true;
+    try {
+      final due = await repo.dueAgents(now());
+      var checked = 0;
+      for (final agent in due) {
+        await checkAgent(agent);
+        checked++;
+      }
+      return checked;
+    } finally {
+      _checkingDue = false;
     }
-    return checked;
   }
 
   /// One full check cycle for a single agent, with activity logging that

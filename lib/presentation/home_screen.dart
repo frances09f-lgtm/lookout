@@ -18,7 +18,10 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  bool _recovering = false;
+  String _recoveryNote =
+      'Background checks are Android best-effort, at least15 minutes apart.';
   List<Agent> _agents = [];
   List<ActivityEntry> _recent = [];
   bool _loading = true;
@@ -26,7 +29,41 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _refresh();
+    WidgetsBinding.instance.addObserver(this);
+    _recover();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _recover();
+  }
+
+  Future<void> _recover() async {
+    if (_recovering) return;
+    _recovering = true;
+    if (mounted) setState(() => _recoveryNote = 'Checking overdue watches...');
+    try {
+      final count = await widget.checker.checkDueAgents();
+      if (mounted)
+        setState(
+          () => _recoveryNote =
+              'Recovered $count due checks. Background checks are best-effort, at least15 minutes apart.',
+        );
+    } catch (_) {
+      if (mounted)
+        setState(
+          () => _recoveryNote = 'Overdue check failed. Pull to retry; check Activity for source errors.',
+        );
+    } finally {
+      _recovering = false;
+      await _refresh();
+    }
   }
 
   Future<void> _refresh() async {
@@ -87,10 +124,18 @@ class _HomeScreenState extends State<HomeScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-              onRefresh: _refresh,
+              onRefresh: _recover,
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  Text(
+                    _recoveryNote,
+                    style: const TextStyle(
+                      color: Color(0xFFB6B6B6),
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
                       _SummaryChip(label: 'Active', count: active),
@@ -331,6 +376,11 @@ class _AgentCard extends StatelessWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: 8),
+              Text(
+                valueProvenance(agent, DateTime.now()),
+                style: const TextStyle(color: Color(0xFFB6B6B6), fontSize: 12),
+              ),
               const SizedBox(height: 12),
               Wrap(
                 spacing: 7,
@@ -354,4 +404,17 @@ class _AgentCard extends StatelessWidget {
 
   static String _fmt(DateTime t) =>
       '${t.day}/${t.month} ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+}
+
+String valueProvenance(Agent agent, DateTime now) {
+  if (agent.type == AgentType.reminder)
+    return 'Reminder uses the device clock.';
+  final at = agent.lastSuccessfulReadAt;
+  if (at == null)
+    return agent.currentValue == null
+        ? 'No fresh value available. Set a source or manual value.'
+        : 'Saved/manual value only: ${agent.currentValue}. Not a live price.';
+  final age = now.difference(at);
+  final fresh = age >= Duration.zero && age <= const Duration(minutes: 5);
+  return '${fresh ? 'Recent successful read' : 'Stale saved read'}: ${agent.lastSuccessfulValue ?? agent.currentValue}, ${age.isNegative ? 0 : age.inMinutes}m ago. Not a live stream.';
 }

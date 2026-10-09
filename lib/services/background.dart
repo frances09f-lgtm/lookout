@@ -17,7 +17,7 @@ void lookoutCallbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
     try {
       final notifier = LocalNotificationsService();
-      await notifier.init();
+      await notifier.init(requestPermission: false);
       final repo = await SqfliteAgentRepository.open();
       final checker = AgentChecker(repo: repo, notifier: notifier);
       await checker.checkDueAgents();
@@ -41,7 +41,7 @@ class BackgroundScheduler {
       // The same dispatcher handles offline reminders and online watches.
       // Do not block reminders while offline. Watch fetch failures are logged
       // without evaluating stale prices, then retried on the next due cycle.
-      existingWorkPolicy: ExistingPeriodicWorkPolicy.update,
+      existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
     );
   }
 }

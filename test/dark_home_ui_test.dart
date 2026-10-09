@@ -70,7 +70,8 @@ void main() {
       ),
     );
     await t.pumpAndSettle();
-    expect(find.text('Checked 2m ago'), findsNWidgets(4));
+    expect(find.text('Checked 2m ago'), findsNWidgets(3));
+    expect(find.text('Checked just now'), findsOneWidget);
     expect(find.byTooltip('Run now'), findsNWidgets(4));
     expect(t.takeException(), isNull);
     await t.runAsync(() async {
