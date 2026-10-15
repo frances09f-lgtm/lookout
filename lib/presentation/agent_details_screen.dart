@@ -278,6 +278,60 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
+                Text(
+                  a.conditionLabel,
+                  style: Theme.of(context).textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final r = await widget.checker.checkAgent(a);
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                r.conditionMet
+                                    ? 'Condition met - ${r.summary}'
+                                    : 'Checked: ${r.summary}',
+                              ),
+                            ),
+                          );
+                          _refresh();
+                        },
+                        icon: const Icon(Icons.play_arrow),
+                        label: const Text('Run now'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          await widget.repo.updateAgent(
+                            a.copyWith(
+                              status: a.status == AgentStatus.paused
+                                  ? AgentStatus.active
+                                  : AgentStatus.paused,
+                            ),
+                          );
+                          _refresh();
+                        },
+                        icon: Icon(
+                          a.status == AgentStatus.paused
+                              ? Icons.play_circle
+                              : Icons.pause_circle,
+                        ),
+                        label: Text(
+                          a.status == AgentStatus.paused ? 'Resume' : 'Pause',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
                 if (a.sourceUrl != null &&
                     PageValueFetcher.sourceIssue(a.sourceUrl!) != null)
                   Card(
@@ -342,12 +396,38 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                       ),
                     ),
                   ),
+                const SizedBox(height: 20),
+                Text(
+                  'Watch setup',
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 10),
                 _row('Goal', a.originalPrompt),
                 _row('Condition', a.conditionLabel),
                 _row(
                   'Check interval',
                   'every ${a.checkInterval.inMinutes} min',
                 ),
+                if (a.type == AgentType.valueWatch) ...[
+                  _row(
+                    'Current value',
+                    a.currentValue?.toString() ?? 'Not set',
+                  ),
+                  _row('Previous value', a.previousValue?.toString() ?? '-'),
+                  _row(
+                    'Source page',
+                    a.sourceUrl ?? 'Not set - updates stay manual',
+                  ),
+                  const SizedBox(height: 4),
+                ],
+                const SizedBox(height: 16),
+                Text(
+                  'Timing',
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
                 _row('Created', _fmtTime(a.createdAt)),
                 _row(
                   'Last checked',
@@ -360,15 +440,6 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                   a.nextCheckAt == null ? '-' : _fmtTime(a.nextCheckAt!),
                 ),
                 if (a.type == AgentType.valueWatch) ...[
-                  _row(
-                    'Current value',
-                    a.currentValue?.toString() ?? 'Not set',
-                  ),
-                  _row('Previous value', a.previousValue?.toString() ?? '-'),
-                  _row(
-                    'Source page',
-                    a.sourceUrl ?? 'Not set - updates stay manual',
-                  ),
                   const SizedBox(height: 4),
                   if (a.sourceUrl != null &&
                       PageValueFetcher.bookMyShowApiUrl(a.sourceUrl!) != null)
@@ -403,6 +474,13 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                         await _refresh();
                       },
                     ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Adjust this watch',
+                    style: Theme.of(context).textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
                   OutlinedButton.icon(
                     onPressed: _updateValue,
                     icon: const Icon(Icons.edit),
@@ -420,53 +498,6 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                   ),
                 ],
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () async {
-                          final messenger = ScaffoldMessenger.of(context);
-                          final r = await widget.checker.checkAgent(a);
-                          messenger.showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                r.conditionMet
-                                    ? 'Condition met - ${r.summary}'
-                                    : 'Checked: ${r.summary}',
-                              ),
-                            ),
-                          );
-                          _refresh();
-                        },
-                        icon: const Icon(Icons.play_arrow),
-                        label: const Text('Run now'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () async {
-                          await widget.repo.updateAgent(
-                            a.copyWith(
-                              status: a.status == AgentStatus.paused
-                                  ? AgentStatus.active
-                                  : AgentStatus.paused,
-                            ),
-                          );
-                          _refresh();
-                        },
-                        icon: Icon(
-                          a.status == AgentStatus.paused
-                              ? Icons.play_circle
-                              : Icons.pause_circle,
-                        ),
-                        label: Text(
-                          a.status == AgentStatus.paused ? 'Resume' : 'Pause',
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
                 const SizedBox(height: 8),
                 TextButton.icon(
                   onPressed: _delete,
