@@ -12,12 +12,16 @@ import '../data/agent_repository.dart';
 import '../domain/agent.dart';
 import 'notifications.dart';
 import 'page_fetch.dart';
+import 'source_discovery.dart';
 import 'usage_reporter.dart';
 
 class CheckResult {
   final bool conditionMet;
   final String summary;
-  const CheckResult(this.conditionMet, this.summary);
+
+  /// False is not the same as a verified condition result of false.
+  final bool evaluated;
+  const CheckResult(this.conditionMet, this.summary, {this.evaluated = true});
 }
 
 class AgentChecker {
@@ -26,6 +30,7 @@ class AgentChecker {
   final DateTime Function() now;
   final Future<FetchOutcome> Function(String url) fetcher;
   final String readMethod;
+  final Future<FetchOutcome> Function(Agent agent) strictFetcher;
 
   AgentChecker({
     required this.repo,
@@ -33,8 +38,10 @@ class AgentChecker {
     DateTime Function()? clock,
     Future<FetchOutcome> Function(String url)? fetcher,
     this.readMethod = 'Automatic page read',
+    Future<FetchOutcome> Function(Agent agent)? strictFetcher,
   }) : now = clock ?? DateTime.now,
-       fetcher = fetcher ?? PageValueFetcher.fetchValue;
+       fetcher = fetcher ?? PageValueFetcher.fetchValue,
+       strictFetcher = strictFetcher ?? DiscoveredSourceReader.fetch;
 
   /// Background entry point: check every due active agent.
   Future<int> checkDueAgents() async {
@@ -60,6 +67,7 @@ class AgentChecker {
     double? newCurrent = agent.currentValue;
     bool currentChanged = false;
     bool successfulRead = false;
+    bool evaluated = true;
     switch (agent.type) {
       case AgentType.reminder:
         final dueAt = DateTime.fromMillisecondsSinceEpoch(agent.target.round());
@@ -67,10 +75,17 @@ class AgentChecker {
         detail = met ? 'Due time reached' : 'Not due yet';
         break;
       case AgentType.valueWatch:
-        if (agent.sourceUrl != null) {
-          final outcome = await fetcher(agent.sourceUrl!);
+        if (agent.sourceUrl != null && agent.sourceUrl!.trim().isNotEmpty) {
+          final outcome = agent.sourceIdentity == null
+              ? await fetcher(agent.sourceUrl!)
+              : await strictFetcher(agent);
           UsageReporter.report('watch_fetch');
-          if (outcome.ok && outcome.value != null) {
+          if (outcome.ok &&
+              outcome.value != null &&
+              outcome.value!.isFinite &&
+              (agent.isTextWatch
+                  ? (outcome.value == 0 || outcome.value == 1)
+                  : outcome.value! > 0)) {
             successfulRead = true;
             if (outcome.value != agent.currentValue) {
               newCurrent = outcome.value;
@@ -81,18 +96,22 @@ class AgentChecker {
               WatchCondition.greaterThan => outcome.value! > agent.target,
               WatchCondition.remindAt => false,
             };
-            detail = '${outcome.detail} - target ${_fmt(agent.target)}';
+            detail = agent.isTextWatch
+                ? outcome.detail
+                : '${outcome.detail} - target ${_fmt(agent.target)}';
           } else {
             // Honest failure: keep the last known value, do not evaluate
             // against stale data, say exactly why.
             met = false;
+            evaluated = false;
             detail = '${outcome.detail} - no fresh value to check';
           }
         } else {
           final current = agent.currentValue;
-          if (current == null) {
+          if (current == null || agent.isTextWatch) {
             met = false;
-            detail = 'No source page set and no manual value (add a page link or update the value on the agent page)';
+            evaluated = false;
+            detail = 'Source resolution needed. No evidence was read or compared; automatic checks are waiting for a confirmed source.';
           } else {
             met = switch (agent.condition) {
               WatchCondition.lessThan => current < agent.target,
@@ -104,8 +123,24 @@ class AgentChecker {
         }
         break;
     }
-    await repo.logActivity(id, 'Fetched data: $detail', at);
-    await repo.logActivity(id, met ? 'Condition met' : 'Condition not met', at);
+    await repo.logActivity(
+      id,
+      evaluated
+          ? '${agent.type == AgentType.reminder
+                ? 'Clock checked'
+                : successfulRead
+                ? 'Fetched data'
+                : 'Manual value checked'}: $detail'
+          : 'Unable to check: $detail',
+      at,
+    );
+    if (evaluated) {
+      await repo.logActivity(
+        id,
+        met ? 'Condition met' : 'Condition not met',
+        at,
+      );
+    }
 
     var updated = agent.copyWith(
       lastCheckedAt: at,
@@ -134,15 +169,21 @@ class AgentChecker {
       );
       updated = updated.copyWith(status: AgentStatus.completed);
       await repo.logActivity(id, 'Agent completed', at);
+    } else if (agent.needsSourceResolution) {
+      await repo.logActivity(
+        id,
+        'Waiting for source resolution; no empty checks scheduled',
+        at,
+      );
     } else {
       await repo.logActivity(
         id,
-        'Next check scheduled for ${_fmtTime(at.add(agent.checkInterval))}',
+        '${evaluated ? 'Next check' : 'Read retry'} scheduled for ${_fmtTime(at.add(agent.checkInterval))}',
         at,
       );
     }
     await repo.updateAgent(updated);
-    return CheckResult(met, detail);
+    return CheckResult(met, detail, evaluated: evaluated);
   }
 
   static String _fmt(double v) =>

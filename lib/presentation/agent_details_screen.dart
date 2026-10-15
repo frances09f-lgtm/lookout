@@ -9,17 +9,21 @@ import '../services/checker.dart';
 import '../services/browser_price_check.dart';
 import '../services/page_fetch.dart';
 import 'activity_screen.dart';
+import 'source_review_screen.dart';
+import '../services/source_discovery.dart';
 
 class AgentDetailsScreen extends StatefulWidget {
   final AgentRepository repo;
   final AgentChecker checker;
   final int agentId;
+  final SourceDiscoveryService? discovery;
 
   const AgentDetailsScreen({
     super.key,
     required this.repo,
     required this.checker,
     required this.agentId,
+    this.discovery,
   });
 
   @override
@@ -175,6 +179,38 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
     }
   }
 
+  Future<void> _findSource() async {
+    final agent = _agent;
+    if (agent == null) return;
+    final selected = await Navigator.of(context).push<ReviewedSource>(
+      MaterialPageRoute(
+        builder: (_) => SourceReviewScreen(
+          task: agent.originalPrompt,
+          discovery: widget.discovery ?? defaultSourceDiscovery(),
+          fixedTarget: agent.target,
+          fixedCondition: agent.condition,
+        ),
+      ),
+    );
+    if (!mounted || selected == null) return;
+    final latest = await widget.repo.agentById(widget.agentId);
+    if (!mounted || latest == null) return;
+    await widget.repo.updateAgent(
+      latest.copyWith(
+        sourceUrl: selected.candidate.url.toString(),
+        sourceIdentity: selected.identity,
+        clearCurrentValue: true,
+        nextCheckAt: DateTime.now(),
+      ),
+    );
+    await widget.repo.logActivity(
+      widget.agentId,
+      'Confirmed matching source: ${selected.candidate.product} — ${selected.candidate.url}',
+      DateTime.now(),
+    );
+    await _refresh();
+  }
+
   Future<void> _setSourcePage() async {
     final controller = TextEditingController(text: _agent?.sourceUrl ?? '');
     final saved = await showDialog<String>(
@@ -220,12 +256,15 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
             ? 'Enter a valid page link.'
             : PageValueFetcher.sourceIssue(url);
         if (issue != null) {
-          if (mounted)
+          if (mounted) {
             ScaffoldMessenger.of(context)
                 .showSnackBar(SnackBar(content: Text(issue)));
+          }
           return;
         }
-        await widget.repo.updateAgent(_agent!.copyWith(sourceUrl: url!));
+        await widget.repo.updateAgent(
+          _agent!.copyWith(sourceUrl: url!, clearSourceIdentity: true),
+        );
         await widget.repo.logActivity(
           widget.agentId,
           'Source page set to $url',
@@ -297,6 +336,12 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                   style: Theme.of(context).textTheme.titleLarge
                       ?.copyWith(fontWeight: FontWeight.w700),
                 ),
+                if (a.needsSourceResolution) ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    'This task is waiting for source resolution. No price has been checked. Empty checks will not repeat.',
+                  ),
+                ],
                 const SizedBox(height: 16),
                 Row(
                   children: [
@@ -308,7 +353,9 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                           messenger.showSnackBar(
                             SnackBar(
                               content: Text(
-                                r.conditionMet
+                                !r.evaluated
+                                    ? 'Unable to check: ${r.summary}'
+                                    : r.conditionMet
                                     ? 'Condition met - ${r.summary}'
                                     : 'Checked: ${r.summary}',
                               ),
@@ -383,7 +430,9 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                           ),
                           if (a.lastSuccessfulReadAt != null) ...[
                             Text(
-                              'Value: ${a.lastSuccessfulValue ?? "Unknown"}',
+                              a.isTextWatch
+                                  ? a.readingLabel(a.lastSuccessfulValue)
+                                  : 'Value: ${a.lastSuccessfulValue ?? "Unknown"}',
                             ),
                             Text(
                               'Method: ${a.lastReadMethod ?? "Unknown (older version)"}',
@@ -424,14 +473,11 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                   'every ${a.checkInterval.inMinutes} min',
                 ),
                 if (a.type == AgentType.valueWatch) ...[
-                  _row(
-                    'Current value',
-                    a.currentValue?.toString() ?? 'Not set',
-                  ),
-                  _row('Previous value', a.previousValue?.toString() ?? '-'),
+                  _row('Current value', a.readingLabel(a.currentValue)),
+                  _row('Previous value', a.readingLabel(a.previousValue)),
                   _row(
                     'Source page',
-                    a.sourceUrl ?? 'Not set - updates stay manual',
+                    a.sourceUrl ?? 'Waiting for source discovery',
                   ),
                   const SizedBox(height: 4),
                 ],
@@ -451,7 +497,11 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                 ),
                 _row(
                   'Next check',
-                  a.nextCheckAt == null ? '-' : _fmtTime(a.nextCheckAt!),
+                  a.needsSourceResolution
+                      ? 'Waiting for a confirmed source'
+                      : a.nextCheckAt == null
+                      ? '-'
+                      : _fmtTime(a.nextCheckAt!),
                 ),
                 if (a.type == AgentType.valueWatch) ...[
                   const SizedBox(height: 4),
@@ -495,21 +545,33 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                         ?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed: _updateValue,
-                    icon: const Icon(Icons.edit),
-                    label: const Text('Update current value'),
+                  FilledButton.icon(
+                    onPressed: _findSource,
+                    icon: const Icon(Icons.search),
+                    label: Text(
+                      a.needsSourceResolution
+                          ? 'Find matching source'
+                          : 'Find a different source',
+                    ),
                   ),
-                  OutlinedButton.icon(
-                    onPressed: _editTarget,
-                    icon: const Icon(Icons.adjust),
-                    label: const Text('Edit target'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: _setSourcePage,
-                    icon: const Icon(Icons.link),
-                    label: const Text('Set source page'),
-                  ),
+                  if (!a.isTextWatch)
+                    OutlinedButton.icon(
+                      onPressed: _updateValue,
+                      icon: const Icon(Icons.edit),
+                      label: const Text('Update current value'),
+                    ),
+                  if (!a.isTextWatch)
+                    OutlinedButton.icon(
+                      onPressed: _editTarget,
+                      icon: const Icon(Icons.adjust),
+                      label: const Text('Edit target'),
+                    ),
+                  if (!a.isTextWatch)
+                    OutlinedButton.icon(
+                      onPressed: _setSourcePage,
+                      icon: const Icon(Icons.link),
+                      label: const Text('Set source page'),
+                    ),
                 ],
                 const SizedBox(height: 16),
                 const SizedBox(height: 8),

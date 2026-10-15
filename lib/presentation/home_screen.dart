@@ -1,3 +1,5 @@
+import 'press_feedback.dart';
+
 import 'package:flutter/material.dart';
 
 import '../data/agent_repository.dart';
@@ -37,7 +39,13 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  int _count(AgentStatus s) => _agents.where((a) => a.status == s).length;
+  int _count(AgentStatus s) => _agents
+      .where(
+        (a) =>
+            a.status == s &&
+            !(s == AgentStatus.active && a.needsSourceResolution),
+      )
+      .length;
 
   Future<void> _createAgent() async {
     await Navigator.of(context).push(
@@ -87,10 +95,12 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _createAgent,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Create Agent'),
+      floatingActionButton: LookoutPressFeedback(
+        child: FloatingActionButton.extended(
+          onPressed: _createAgent,
+          icon: const Icon(Icons.add_rounded),
+          label: const Text('Create Agent'),
+        ),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -143,6 +153,21 @@ class _HomeScreenState extends State<HomeScreen> {
                               label: 'Active',
                               count: _count(AgentStatus.active),
                             ),
+                            if (_agents.any(
+                              (a) =>
+                                  a.status == AgentStatus.active &&
+                                  a.needsSourceResolution,
+                            ))
+                              _SummaryChip(
+                                label: 'Needs source',
+                                count: _agents
+                                    .where(
+                                      (a) =>
+                                          a.status == AgentStatus.active &&
+                                          a.needsSourceResolution,
+                                    )
+                                    .length,
+                              ),
                             _SummaryChip(
                               label: 'Paused',
                               count: _count(AgentStatus.paused),
@@ -321,115 +346,122 @@ class _AgentCard extends StatelessWidget {
     final number = agent.currentValue;
     return Card(
       margin: const EdgeInsets.only(bottom: 14),
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Icon(
-                    agent.type == AgentType.reminder
-                        ? Icons.alarm_rounded
-                        : Icons.show_chart_rounded,
-                    size: 19,
-                    color: scheme.primary,
+      child: LookoutPressFeedback(
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Icon(
+                      agent.type == AgentType.reminder
+                          ? Icons.alarm_rounded
+                          : Icons.show_chart_rounded,
+                      size: 19,
+                      color: scheme.primary,
+                    ),
+                    Text(
+                      agent.typeLabel,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: .10),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        agent.statusLabel,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: statusColor,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        agent.title,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          height: 1.3,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 18,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  agent.conditionLabel,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
                   ),
+                ),
+                if (agent.type == AgentType.valueWatch && number != null) ...[
+                  const SizedBox(height: 10),
                   Text(
-                    agent.typeLabel,
-                    style: theme.textTheme.labelMedium?.copyWith(
+                    agent.isTextWatch
+                        ? agent.readingLabel(number)
+                        : 'Stored value: ${number == number.roundToDouble() ? number.toInt() : number}',
+                    style: theme.textTheme.labelLarge,
+                  ),
+                ],
+                if (agent.lastCheckedAt != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Last checked ${_fmt(agent.lastCheckedAt!)}',
+                    style: theme.textTheme.bodySmall?.copyWith(
                       color: scheme.onSurfaceVariant,
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 4,
+                ],
+                const SizedBox(height: 12),
+                const Divider(height: 1),
+                const SizedBox(height: 4),
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  spacing: 8,
+                  children: [
+                    TextButton(
+                      onPressed: onRunNow,
+                      child: const Text('Run now'),
                     ),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: .10),
-                      borderRadius: BorderRadius.circular(8),
+                    TextButton(
+                      onPressed: onHistory,
+                      child: const Text('History'),
                     ),
-                    child: Text(
-                      agent.statusLabel,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: statusColor,
-                        fontWeight: FontWeight.w700,
+                    TextButton(
+                      onPressed: onPauseResume,
+                      child: Text(
+                        agent.status == AgentStatus.paused ? 'Resume' : 'Pause',
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Text(
-                      agent.title,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        height: 1.3,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    Icons.arrow_forward_rounded,
-                    size: 18,
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                agent.conditionLabel,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
-              ),
-              if (agent.type == AgentType.valueWatch && number != null) ...[
-                const SizedBox(height: 10),
-                Text(
-                  'Stored value: ${number == number.roundToDouble() ? number.toInt() : number}',
-                  style: theme.textTheme.labelLarge,
+                  ],
                 ),
               ],
-              if (agent.lastCheckedAt != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  'Last checked ${_fmt(agent.lastCheckedAt!)}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 12),
-              const Divider(height: 1),
-              const SizedBox(height: 4),
-              Wrap(
-                alignment: WrapAlignment.spaceBetween,
-                spacing: 8,
-                children: [
-                  TextButton(onPressed: onRunNow, child: const Text('Run now')),
-                  TextButton(
-                    onPressed: onHistory,
-                    child: const Text('History'),
-                  ),
-                  TextButton(
-                    onPressed: onPauseResume,
-                    child: Text(
-                      agent.status == AgentStatus.paused ? 'Resume' : 'Pause',
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
         ),
       ),

@@ -90,7 +90,13 @@ void main() {
     final stored = await repo.agentById(id);
     expect(stored!.status, AgentStatus.active);
     final log = await repo.activityFor(id);
-    expect(log.any((e) => e.message.contains('No source page set and no manual value')), isTrue);
+    expect(log, isEmpty); // Legacy source-less tasks wait instead of looping.
+    expect(stored.statusLabel, 'Needs source');
+    final result = await checker.checkAgent(stored);
+    expect(result.evaluated, isFalse);
+    final manualLog = await repo.activityFor(id);
+    expect(manualLog.any((e) => e.message == 'Condition not met'), isFalse);
+    expect(manualLog.any((e) => e.message.startsWith('Fetched data:')), isFalse);
   });
 
   test('paused agents are not checked', () async {

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'press_feedback.dart';
+
 /// Shared presentation only; no scheduling or storage changes.
 class LookoutTheme {
   static const _seed = Color(0xFF235F57);
@@ -54,7 +56,19 @@ class LookoutTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-        ),
+        ).copyWith(backgroundBuilder: LookoutPressFeedback.buttonLayer),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: ButtonStyle(backgroundBuilder: LookoutPressFeedback.buttonLayer),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: ButtonStyle(backgroundBuilder: LookoutPressFeedback.buttonLayer),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ButtonStyle(backgroundBuilder: LookoutPressFeedback.buttonLayer),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: ButtonStyle(backgroundBuilder: LookoutPressFeedback.buttonLayer),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 2,

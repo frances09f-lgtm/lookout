@@ -1,3 +1,5 @@
+import 'press_feedback.dart';
+
 import 'package:flutter/material.dart';
 
 import '../data/agent_repository.dart';
@@ -76,15 +78,17 @@ class _ActivityScreenState extends State<ActivityScreen> {
           const SizedBox(height: 16),
           for (final task in tasks)
             Card(
-              child: ListTile(
-                key: ValueKey('history-task-${task.id}'),
-                title: Text(task.title),
-                subtitle: Text('Task #${task.id} · ${task.statusLabel}'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        ActivityScreen(repo: widget.repo, agentId: task.id!),
+              child: LookoutPressFeedback(
+                child: ListTile(
+                  key: ValueKey('history-task-${task.id}'),
+                  title: Text(task.title),
+                  subtitle: Text('Task #${task.id} · ${task.statusLabel}'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          ActivityScreen(repo: widget.repo, agentId: task.id!),
+                    ),
                   ),
                 ),
               ),

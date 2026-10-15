@@ -64,6 +64,7 @@ class InMemoryAgentRepository implements AgentRepository {
     currentValue: a.currentValue,
     previousValue: a.previousValue,
     sourceUrl: a.sourceUrl,
+    sourceIdentity: a.sourceIdentity,
     notificationEnabled: a.notificationEnabled,
     lastSuccessfulReadAt: a.lastSuccessfulReadAt,
     lastSuccessfulValue: a.lastSuccessfulValue,
@@ -88,6 +89,7 @@ class InMemoryAgentRepository implements AgentRepository {
       .where(
         (a) =>
             a.status == AgentStatus.active &&
+            !a.needsSourceResolution &&
             (a.nextCheckAt == null || !a.nextCheckAt!.isAfter(now)),
       )
       .toList();

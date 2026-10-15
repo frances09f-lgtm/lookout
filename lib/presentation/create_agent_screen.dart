@@ -3,10 +3,14 @@ import 'package:flutter/material.dart';
 import '../data/agent_repository.dart';
 import '../domain/agent.dart';
 import '../domain/parser.dart';
+import 'press_feedback.dart';
+import 'source_review_screen.dart';
+import '../services/source_discovery.dart';
 
 class CreateAgentScreen extends StatefulWidget {
   final AgentRepository repo;
-  const CreateAgentScreen({super.key, required this.repo});
+  final SourceDiscoveryService? discovery;
+  const CreateAgentScreen({super.key, required this.repo, this.discovery});
 
   @override
   State<CreateAgentScreen> createState() => _CreateAgentScreenState();
@@ -22,7 +26,12 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
   final _controller = TextEditingController();
   final _urlController = TextEditingController();
   String? _lastAutoUrl;
+  String? _lastTaskText;
   ParsedGoal? _parsed;
+  ReviewedSource? _reviewed;
+  bool _creating = false;
+  bool get _isText =>
+      DiscoveryTaskParser.parse(_controller.text).spec?.isText ?? false;
   Duration _interval = const Duration(minutes: 30);
 
   static const _intervals = [
@@ -41,6 +50,12 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
     _controller.addListener(
       () => setState(() {
         final text = _controller.text.trim();
+        if (text == _lastTaskText) return;
+        _lastTaskText = text;
+        if (_reviewed != null) {
+          _reviewed = null;
+          _urlController.clear();
+        }
         _parsed = text.isEmpty ? null : GoalParser.parse(text);
         final u = _parsed?.sourceUrl;
         if (u != null && u != _lastAutoUrl) {
@@ -73,22 +88,47 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
 
   Future<void> _create() async {
     final p = _parsed;
-    if (p == null || p.outcome != ParseOutcome.ok) return;
-    await widget.repo.insertAgent(
-      Agent(
-        title: p.title,
-        originalPrompt: _controller.text.trim(),
-        type: p.type!,
-        status: AgentStatus.active,
-        createdAt: DateTime.now(),
-        nextCheckAt: DateTime.now(),
-        checkInterval: _interval,
-        condition: p.condition!,
-        target: p.target!,
-        sourceUrl: _sourceUrl,
-      ),
-    );
-    if (mounted) Navigator.of(context).pop();
+    if (p == null || p.outcome != ParseOutcome.ok || _creating) return;
+    if (p.type == AgentType.valueWatch &&
+        (_sourceUrl == null || (_isText && _reviewed == null))) {
+      final reviewed = await Navigator.of(context).push<ReviewedSource>(
+        MaterialPageRoute(
+          builder: (_) => SourceReviewScreen(
+            task: _controller.text,
+            discovery: widget.discovery ?? defaultSourceDiscovery(),
+            fixedTarget: p.target,
+            fixedCondition: p.condition,
+          ),
+        ),
+      );
+      if (!mounted || reviewed == null) return;
+      setState(() {
+        _reviewed = reviewed;
+        _urlController.text = reviewed.candidate.url.toString();
+      });
+      return; // source review never silently creates or activates a watch
+    }
+    setState(() => _creating = true);
+    try {
+      await widget.repo.insertAgent(
+        Agent(
+          title: p.title,
+          originalPrompt: _controller.text.trim(),
+          type: p.type!,
+          status: AgentStatus.active,
+          createdAt: DateTime.now(),
+          nextCheckAt: DateTime.now(),
+          checkInterval: _interval,
+          condition: p.condition!,
+          target: p.target!,
+          sourceUrl: _sourceUrl,
+          sourceIdentity: _reviewed?.identity,
+        ),
+      );
+      if (mounted) Navigator.of(context).pop();
+    } finally {
+      if (mounted) setState(() => _creating = false);
+    }
   }
 
   @override
@@ -130,42 +170,32 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
                 ),
               ),
               const SizedBox(height: 10),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final wide =
-                      constraints.maxWidth >= 330 &&
-                      MediaQuery.textScalerOf(context).scale(1) <= 1.3;
-                  final cards = [
-                    _ExampleTile(
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _ExampleTile(
                       icon: Icons.show_chart_rounded,
                       title: 'Watch a value',
                       subtitle: 'Below a target',
                       onTap: () => _controller.text = suggestions[0],
                     ),
-                    _ExampleTile(
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _ExampleTile(
                       icon: Icons.alarm_rounded,
                       title: 'Set a reminder',
                       subtitle: 'At the right time',
                       onTap: () => _controller.text = suggestions[2],
                     ),
-                  ];
-                  return wide
-                      ? Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(child: cards[0]),
-                            const SizedBox(width: 10),
-                            Expanded(child: cards[1]),
-                          ],
-                        )
-                      : Column(
-                          children: [
-                            cards[0],
-                            const SizedBox(height: 10),
-                            cards[1],
-                          ],
-                        );
-                },
+                  ),
+                ],
+              ),
+              TextButton.icon(
+                onPressed: () => _controller.text = 'Check University results page contains "Results published"',
+                icon: const Icon(Icons.text_snippet_outlined),
+                label: const Text('Watch for text on a public page'),
               ),
               const SizedBox(height: 24),
               Text(
@@ -186,28 +216,54 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
               ),
               const SizedBox(height: 22),
               Text(
-                '2  Source page',
+                '2  Find a source',
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(height: 6),
               Text(
-                'Optional for value watches. You can also enter values manually.',
+                'Just describe your task. Lookout supports exact product prices and literal text on public pages. It asks for missing details, then finds pages for you to review—not every kind of task yet.',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: colors.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 10),
-              TextField(
-                controller: _urlController,
-                keyboardType: TextInputType.url,
-                decoration: const InputDecoration(
-                  labelText: 'Page link',
-                  hintText: 'https://...',
-                  prefixIcon: Icon(Icons.link_rounded),
+              if (_reviewed != null)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Reviewed source'),
+                        Text(_reviewed!.candidate.product),
+                        Text(_reviewed!.candidate.url.toString()),
+                        Text(
+                          '${_reviewed!.candidate.readingLabel} · read once; future reads may fail',
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+              if (!_isText)
+                LookoutPressFeedback(
+                  child: ExpansionTile(
+                    title: const Text('Advanced: optional page link'),
+                    children: [
+                      TextField(
+                        controller: _urlController,
+                        keyboardType: TextInputType.url,
+                        onChanged: (_) => setState(() => _reviewed = null),
+                        decoration: const InputDecoration(
+                          labelText: 'Page link',
+                          hintText: 'https://...',
+                          prefixIcon: Icon(Icons.link_rounded),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               const SizedBox(height: 24),
               if (p != null && p.outcome == ParseOutcome.needsV2)
                 Card(
@@ -224,7 +280,7 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
                   child: Padding(
                     padding: EdgeInsets.all(16),
                     child: Text(
-                      'I could not turn that into a check yet. Try a price target ("cheaper than ₹50,000") or a reminder ("remind me in 2 hours").',
+                      'I could not turn that into a check yet. Try an exact product price, a reminder, or: check University results page contains "Results published". Semantic judgements, arbitrary numeric metrics, availability and webpage-change checks need a dedicated evaluator and cannot start yet.',
                     ),
                   ),
                 ),
@@ -246,6 +302,8 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
                         Text(
                           p.type == AgentType.reminder
                               ? 'Reminder'
+                              : _isText
+                              ? 'Page text watch'
                               : 'Value watch',
                           style: theme.textTheme.labelMedium?.copyWith(
                             color: colors.primary,
@@ -266,13 +324,17 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
                           ),
                         if (p.type == AgentType.valueWatch) ...[
                           Text(
-                            'Condition: ${p.condition == WatchCondition.lessThan ? 'below' : 'above'} ${p.target}',
+                            _isText
+                                ? 'Condition: reviewed page contains “${DiscoveryTaskParser.parse(_controller.text).spec!.phrase}”'
+                                : 'Condition: ${p.condition == WatchCondition.lessThan ? 'below' : 'above'} ${p.target}',
                           ),
                           const SizedBox(height: 8),
                           Text(
                             _sourceUrl != null
-                                ? 'Lookout fetches the current value from that page on every check.'
-                                : 'Add a page link above, or update the value manually on the agent page.',
+                                ? (_isText
+                                      ? 'Each check re-reads this page. Exact text only, not a judgement about what happened.'
+                                      : 'Lookout fetches the current value from that page on every check.')
+                                : 'Find and review a matching source before starting this watch. No URL required.',
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: colors.onSurfaceVariant,
                             ),
@@ -286,16 +348,19 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             const Text('Check every'),
-                            DropdownButton<Duration>(
-                              value: _interval,
-                              items: [
-                                for (final d in _intervals)
-                                  DropdownMenuItem(
-                                    value: d,
-                                    child: Text(_intervalLabel(d)),
-                                  ),
-                              ],
-                              onChanged: (d) => setState(() => _interval = d!),
+                            LookoutPressFeedback(
+                              child: DropdownButton<Duration>(
+                                value: _interval,
+                                items: [
+                                  for (final d in _intervals)
+                                    DropdownMenuItem(
+                                      value: d,
+                                      child: Text(_intervalLabel(d)),
+                                    ),
+                                ],
+                                onChanged: (d) =>
+                                    setState(() => _interval = d!),
+                              ),
                             ),
                           ],
                         ),
@@ -305,9 +370,17 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
                 ),
                 const SizedBox(height: 16),
                 FilledButton.icon(
-                  onPressed: _create,
+                  onPressed: _creating ? null : _create,
                   icon: const Icon(Icons.add_rounded),
-                  label: const Text('Create Agent'),
+                  label: Text(
+                    _creating
+                        ? 'Creating…'
+                        : p.type == AgentType.valueWatch &&
+                              (_sourceUrl == null ||
+                                  (_isText && _reviewed == null))
+                        ? 'Find matching source'
+                        : 'Create Agent',
+                  ),
                 ),
               ],
               const SizedBox(height: 24),
@@ -321,10 +394,12 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
               ),
               Align(
                 alignment: Alignment.centerLeft,
-                child: ActionChip(
-                  avatar: const Icon(Icons.info_outline_rounded, size: 16),
-                  label: const Text('Webpage-change checks'),
-                  onPressed: () => _controller.text = suggestions[1],
+                child: LookoutPressFeedback(
+                  child: ActionChip(
+                    avatar: const Icon(Icons.info_outline_rounded, size: 16),
+                    label: const Text('Webpage-change checks'),
+                    onPressed: () => _controller.text = suggestions[1],
+                  ),
                 ),
               ),
             ],
@@ -352,30 +427,36 @@ class _ExampleTile extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       color: theme.colorScheme.primaryContainer,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, color: theme.colorScheme.onPrimaryContainer),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: theme.colorScheme.onPrimaryContainer,
-                  fontWeight: FontWeight.w700,
-                ),
+      child: LookoutPressFeedback(
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 84),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(icon, color: theme.colorScheme.onPrimaryContainer),
+                  const SizedBox(height: 12),
+                  Text(
+                    title,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: theme.colorScheme.onPrimaryContainer,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onPrimaryContainer,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

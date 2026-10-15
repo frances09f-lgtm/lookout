@@ -7,6 +7,8 @@
 /// V2 per the spec.
 library;
 
+import 'dart:convert';
+
 enum AgentType {
   /// Fires once when a point in time is reached.
   reminder,
@@ -50,6 +52,9 @@ class Agent {
 
   /// Page to fetch the watched value from. Null = manual value watch.
   final String? sourceUrl;
+
+  /// Reviewed product identity for strict automatic price checks (JSON).
+  final String? sourceIdentity;
   final bool notificationEnabled;
   final DateTime? lastSuccessfulReadAt;
   final double? lastSuccessfulValue;
@@ -71,6 +76,7 @@ class Agent {
     this.currentValue,
     this.previousValue,
     this.sourceUrl,
+    this.sourceIdentity,
     this.notificationEnabled = true,
     this.lastSuccessfulReadAt,
     this.lastSuccessfulValue,
@@ -89,6 +95,8 @@ class Agent {
     double? currentValue,
     double? previousValue,
     String? sourceUrl,
+    String? sourceIdentity,
+    bool clearSourceIdentity = false,
     bool? notificationEnabled,
     DateTime? lastSuccessfulReadAt,
     double? lastSuccessfulValue,
@@ -114,6 +122,9 @@ class Agent {
           : (currentValue ?? this.currentValue),
       previousValue: previousValue ?? this.previousValue,
       sourceUrl: clearSourceUrl ? null : (sourceUrl ?? this.sourceUrl),
+      sourceIdentity: clearSourceIdentity || clearSourceUrl
+          ? null
+          : sourceIdentity ?? this.sourceIdentity,
       notificationEnabled: notificationEnabled ?? this.notificationEnabled,
       lastSuccessfulReadAt: lastSuccessfulReadAt ?? this.lastSuccessfulReadAt,
       lastSuccessfulValue: lastSuccessfulValue ?? this.lastSuccessfulValue,
@@ -122,27 +133,65 @@ class Agent {
     );
   }
 
+  bool get isTextWatch {
+    try {
+      return sourceIdentity != null &&
+          (jsonDecode(sourceIdentity!) as Map)['kind'] == 'textPresence';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  String readingLabel(double? value) => isTextWatch
+      ? value == null
+            ? 'Not checked'
+            : value == 1
+            ? 'Phrase present'
+            : 'Phrase absent on this page'
+      : value?.toString() ?? 'Not set';
+  String? get watchedPhrase {
+    try {
+      return isTextWatch
+          ? (jsonDecode(sourceIdentity!) as Map)['phrase'] as String?
+          : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   String get typeLabel => switch (type) {
     AgentType.reminder => 'Reminder',
-    AgentType.valueWatch => 'Value watch',
+    AgentType.valueWatch => isTextWatch ? 'Page text watch' : 'Value watch',
   };
 
-  String get statusLabel => switch (status) {
-    AgentStatus.active => 'Active',
-    AgentStatus.paused => 'Paused',
-    AgentStatus.completed => 'Completed',
-    AgentStatus.failed => 'Failed',
-  };
+  /// Derived from existing persisted fields, so legacy source-less tasks also
+  /// enter resolution without deleting, renumbering or migrating their history.
+  bool get needsSourceResolution =>
+      type == AgentType.valueWatch &&
+      (sourceUrl == null || sourceUrl!.trim().isEmpty) &&
+      (currentValue == null || isTextWatch);
+
+  String get statusLabel =>
+      status == AgentStatus.active && needsSourceResolution
+      ? 'Needs source'
+      : switch (status) {
+          AgentStatus.active => 'Active',
+          AgentStatus.paused => 'Paused',
+          AgentStatus.completed => 'Completed',
+          AgentStatus.failed => 'Failed',
+        };
 
   /// Human description of the condition shown on cards and details.
-  String get conditionLabel => switch (condition) {
-    WatchCondition.remindAt =>
-      'Remind at ${_fmtTime(DateTime.fromMillisecondsSinceEpoch(target.round()))}',
-    WatchCondition.lessThan =>
-      'Notify when value drops below ${_fmtNum(target)}',
-    WatchCondition.greaterThan =>
-      'Notify when value rises above ${_fmtNum(target)}',
-  };
+  String get conditionLabel => isTextWatch
+      ? 'Notify when this page contains “$watchedPhrase”'
+      : switch (condition) {
+          WatchCondition.remindAt =>
+            'Remind at ${_fmtTime(DateTime.fromMillisecondsSinceEpoch(target.round()))}',
+          WatchCondition.lessThan =>
+            'Notify when value drops below ${_fmtNum(target)}',
+          WatchCondition.greaterThan =>
+            'Notify when value rises above ${_fmtNum(target)}',
+        };
 
   static String _fmtTime(DateTime t) {
     final h = t.hour.toString().padLeft(2, '0');
@@ -168,6 +217,7 @@ class Agent {
     'currentValue': currentValue,
     'previousValue': previousValue,
     'sourceUrl': sourceUrl,
+    'sourceIdentity': sourceIdentity,
     'notificationEnabled': notificationEnabled ? 1 : 0,
     'lastSuccessfulReadAt': lastSuccessfulReadAt?.millisecondsSinceEpoch,
     'lastSuccessfulValue': lastSuccessfulValue,
@@ -194,6 +244,7 @@ class Agent {
     currentValue: (m['currentValue'] as num?)?.toDouble(),
     previousValue: (m['previousValue'] as num?)?.toDouble(),
     sourceUrl: m['sourceUrl'] as String?,
+    sourceIdentity: m['sourceIdentity'] as String?,
     notificationEnabled: (m['notificationEnabled'] as int) == 1,
     lastSuccessfulReadAt: m['lastSuccessfulReadAt'] == null
         ? null
