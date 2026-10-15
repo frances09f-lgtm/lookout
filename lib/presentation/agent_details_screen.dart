@@ -8,6 +8,7 @@ import '../domain/parser.dart';
 import '../services/checker.dart';
 import '../services/browser_price_check.dart';
 import '../services/page_fetch.dart';
+import 'activity_screen.dart';
 
 class AgentDetailsScreen extends StatefulWidget {
   final AgentRepository repo;
@@ -35,17 +36,30 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
     _refresh();
   }
 
+  @override
+  void didUpdateWidget(covariant AgentDetailsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.agentId != widget.agentId || oldWidget.repo != widget.repo) {
+      _agent = null;
+      _activity = [];
+      _refresh();
+    }
+  }
+
   Future<void> _refresh() async {
-    final a = await widget.repo.agentById(widget.agentId);
+    final id = widget.agentId;
+    final repo = widget.repo;
+    final a = await repo.agentById(id);
+    if (!mounted || id != widget.agentId || repo != widget.repo) return;
     if (a == null) {
       if (mounted) Navigator.of(context).pop();
       return;
     }
-    final log = await widget.repo.activityFor(widget.agentId);
-    if (mounted) {
+    final log = await repo.activityFor(id);
+    if (mounted && id == widget.agentId && repo == widget.repo) {
       setState(() {
         _agent = a;
-        _activity = log;
+        _activity = log.where((entry) => entry.agentId == id).toList();
       });
     }
   }
@@ -514,8 +528,20 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Activity history',
+                  'This task’s activity history',
                   style: Theme.of(context).textTheme.titleMedium,
+                ),
+                TextButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ActivityScreen(
+                        repo: widget.repo,
+                        agentId: widget.agentId,
+                      ),
+                    ),
+                  ),
+                  icon: const Icon(Icons.history),
+                  label: const Text('Open task history'),
                 ),
                 const SizedBox(height: 8),
                 if (_activity.isEmpty)

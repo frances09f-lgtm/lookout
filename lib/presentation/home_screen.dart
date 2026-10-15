@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../data/agent_repository.dart';
-import '../domain/activity.dart';
 import '../domain/agent.dart';
 import '../services/checker.dart';
 import 'activity_screen.dart';
@@ -20,7 +19,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   List<Agent> _agents = [];
-  List<ActivityEntry> _recent = [];
   bool _loading = true;
 
   @override
@@ -31,11 +29,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _refresh() async {
     final agents = await widget.repo.allAgents();
-    final recent = await widget.repo.recentActivity(limit: 10);
     if (mounted) {
       setState(() {
         _agents = agents;
-        _recent = recent;
         _loading = false;
       });
     }
@@ -85,7 +81,7 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           IconButton(
             onPressed: _openActivity,
-            tooltip: 'Activity log',
+            tooltip: 'Task histories',
             icon: const Icon(Icons.history_rounded),
           ),
           const SizedBox(width: 8),
@@ -233,6 +229,14 @@ class _HomeScreenState extends State<HomeScreen> {
                               );
                               _refresh();
                             },
+                            onHistory: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => ActivityScreen(
+                                  repo: widget.repo,
+                                  agentId: a.id!,
+                                ),
+                              ),
+                            ),
                             onRunNow: () async {
                               await widget.checker.checkAgent(a);
                               _refresh();
@@ -249,47 +253,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             },
                           ),
                         ),
-                      if (_recent.isNotEmpty) ...[
-                        const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                'Recent activity',
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: _openActivity,
-                              child: const Text('View all'),
-                            ),
-                          ],
-                        ),
-                        ..._recent.map(
-                          (e) => ListTile(
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                            ),
-                            leading: Icon(
-                              Icons.bolt_rounded,
-                              color: colors.primary,
-                              size: 20,
-                            ),
-                            title: Text(
-                              e.message,
-                              style: theme.textTheme.bodyMedium,
-                            ),
-                            subtitle: Text(
-                              _fmtTime(e.timestamp),
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: colors.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ),
@@ -297,9 +260,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
     );
   }
-
-  static String _fmtTime(DateTime t) =>
-      '${t.day}/${t.month} ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 }
 
 class _SummaryChip extends StatelessWidget {
@@ -338,11 +298,13 @@ class _AgentCard extends StatelessWidget {
   final Agent agent;
   final VoidCallback onTap;
   final VoidCallback onRunNow;
+  final VoidCallback onHistory;
   final VoidCallback onPauseResume;
   const _AgentCard({
     required this.agent,
     required this.onTap,
     required this.onRunNow,
+    required this.onHistory,
     required this.onPauseResume,
   });
 
@@ -455,6 +417,10 @@ class _AgentCard extends StatelessWidget {
                 spacing: 8,
                 children: [
                   TextButton(onPressed: onRunNow, child: const Text('Run now')),
+                  TextButton(
+                    onPressed: onHistory,
+                    child: const Text('History'),
+                  ),
                   TextButton(
                     onPressed: onPauseResume,
                     child: Text(
