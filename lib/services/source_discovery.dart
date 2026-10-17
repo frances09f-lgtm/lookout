@@ -7,6 +7,7 @@ import 'package:html/parser.dart' as html;
 
 import '../domain/agent.dart';
 import '../domain/parser.dart';
+import '../domain/ticket_task.dart';
 
 /// Foreground discovery only. No automatic subscription, page substitution,
 /// broad search scraping, or model/API credentials embedded in the app.
@@ -115,6 +116,9 @@ class DiscoveryTaskParser {
         ),
         const [],
       );
+    }
+    if (TicketTaskPolicy.isPriceTask(task)) {
+      return const TaskClarification(null, [TicketTaskPolicy.limitation]);
     }
     final q = <String>[];
     if (!RegExp(

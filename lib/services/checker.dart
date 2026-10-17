@@ -10,6 +10,7 @@ library;
 
 import '../data/agent_repository.dart';
 import '../domain/agent.dart';
+import '../domain/ticket_task.dart';
 import 'notifications.dart';
 import 'page_fetch.dart';
 import 'source_discovery.dart';
@@ -75,6 +76,12 @@ class AgentChecker {
         detail = met ? 'Due time reached' : 'Not due yet';
         break;
       case AgentType.valueWatch:
+        if (agent.isUnsupportedTicketWatch) {
+          met = false;
+          evaluated = false;
+          detail = TicketTaskPolicy.limitation;
+          break;
+        }
         if (agent.sourceUrl != null && agent.sourceUrl!.trim().isNotEmpty) {
           final outcome = agent.sourceIdentity == null
               ? await fetcher(agent.sourceUrl!)
@@ -172,7 +179,9 @@ class AgentChecker {
     } else if (agent.needsSourceResolution) {
       await repo.logActivity(
         id,
-        'Waiting for source resolution; no empty checks scheduled',
+        agent.isUnsupportedTicketWatch
+            ? 'Waiting for ticket-monitoring support; no checks scheduled'
+            : 'Waiting for source resolution; no empty checks scheduled',
         at,
       );
     } else {

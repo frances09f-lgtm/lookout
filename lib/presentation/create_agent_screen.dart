@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/agent_repository.dart';
 import '../domain/agent.dart';
 import '../domain/parser.dart';
+import '../domain/ticket_task.dart';
 import 'press_feedback.dart';
 import 'source_review_screen.dart';
 import '../services/source_discovery.dart';
@@ -32,6 +33,7 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
   bool _creating = false;
   bool get _isText =>
       DiscoveryTaskParser.parse(_controller.text).spec?.isText ?? false;
+  bool get _isTicket => TicketTaskPolicy.isPriceTask(_controller.text);
   Duration _interval = const Duration(minutes: 30);
 
   static const _intervals = [
@@ -90,7 +92,7 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
     final p = _parsed;
     if (p == null || p.outcome != ParseOutcome.ok || _creating) return;
     if (p.type == AgentType.valueWatch &&
-        (_sourceUrl == null || (_isText && _reviewed == null))) {
+        (_isTicket || _sourceUrl == null || (_isText && _reviewed == null))) {
       final reviewed = await Navigator.of(context).push<ReviewedSource>(
         MaterialPageRoute(
           builder: (_) => SourceReviewScreen(
@@ -273,7 +275,7 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
                     ),
                   ),
                 ),
-              if (!_isText)
+              if (!_isText && !_isTicket)
                 LookoutPressFeedback(
                   child: ExpansionTile(
                     title: const Text('Advanced: optional page link'),
@@ -329,6 +331,8 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
                         Text(
                           p.type == AgentType.reminder
                               ? 'Reminder'
+                              : _isTicket
+                              ? 'Ticket price check — unavailable'
                               : _isText
                               ? 'Page text watch'
                               : 'Value watch',
@@ -357,7 +361,9 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            _sourceUrl != null
+                            _isTicket
+                                ? TicketTaskPolicy.limitation
+                                : _sourceUrl != null
                                 ? (_isText
                                       ? 'Each check re-reads this page. Exact text only, not a judgement about what happened.'
                                       : 'Lookout fetches the current value from that page on every check.')
@@ -402,6 +408,8 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
                   label: Text(
                     _creating
                         ? 'Creating…'
+                        : _isTicket
+                        ? 'View ticket-check limits'
                         : p.type == AgentType.valueWatch &&
                               (_sourceUrl == null ||
                                   (_isText && _reviewed == null))

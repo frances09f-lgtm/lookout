@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../services/source_discovery.dart';
 import '../domain/agent.dart';
+import '../domain/ticket_task.dart';
 
 /// Foreground clarification and explicit source review; never activates a watch.
 class SourceReviewScreen extends StatefulWidget {
@@ -144,6 +145,41 @@ class _SourceReviewScreenState extends State<SourceReviewScreen> {
   @override
   Widget build(BuildContext context) {
     final c = Theme.of(context).colorScheme;
+    if (TicketTaskPolicy.isPriceTask(widget.task)) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Ticket price check')),
+        body: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            Text(
+              TicketTaskPolicy.title,
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 16),
+            const Text('Your saved task'),
+            const SizedBox(height: 8),
+            SelectableText(widget.task),
+            if (widget.fixedTarget != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Saved target: strictly ${widget.fixedCondition == WatchCondition.greaterThan ? 'above' : 'below'} ${widget.fixedTarget!.toStringAsFixed(widget.fixedTarget! == widget.fixedTarget!.roundToDouble() ? 0 : 2)}. Unchanged.',
+              ),
+            ],
+            const SizedBox(height: 16),
+            const Text(TicketTaskPolicy.limitation),
+            const SizedBox(height: 16),
+            const Text(TicketTaskPolicy.requirements),
+            const SizedBox(height: 16),
+            const Text(TicketTaskPolicy.transport),
+            const SizedBox(height: 20),
+            OutlinedButton(
+              onPressed: () => Navigator.maybePop(context),
+              child: const Text('Back to task'),
+            ),
+          ],
+        ),
+      );
+    }
     return Scaffold(
       appBar: AppBar(title: const Text('Find a source')),
       body: ListView(

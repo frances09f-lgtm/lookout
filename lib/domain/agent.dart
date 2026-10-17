@@ -9,6 +9,8 @@ library;
 
 import 'dart:convert';
 
+import 'ticket_task.dart';
+
 enum AgentType {
   /// Fires once when a point in time is reached.
   reminder,
@@ -159,20 +161,33 @@ class Agent {
     }
   }
 
+  bool get isUnsupportedTicketWatch =>
+      type == AgentType.valueWatch &&
+      !isTextWatch &&
+      TicketTaskPolicy.isPriceTask(originalPrompt);
+
   String get typeLabel => switch (type) {
     AgentType.reminder => 'Reminder',
-    AgentType.valueWatch => isTextWatch ? 'Page text watch' : 'Value watch',
+    AgentType.valueWatch =>
+      isUnsupportedTicketWatch
+          ? 'Ticket price watch'
+          : isTextWatch
+          ? 'Page text watch'
+          : 'Value watch',
   };
 
   /// Derived from existing persisted fields, so legacy source-less tasks also
   /// enter resolution without deleting, renumbering or migrating their history.
   bool get needsSourceResolution =>
       type == AgentType.valueWatch &&
-      (sourceUrl == null || sourceUrl!.trim().isEmpty) &&
-      (currentValue == null || isTextWatch);
+      (isUnsupportedTicketWatch ||
+          ((sourceUrl == null || sourceUrl!.trim().isEmpty) &&
+              (currentValue == null || isTextWatch)));
 
   String get statusLabel =>
-      status == AgentStatus.active && needsSourceResolution
+      status == AgentStatus.active && isUnsupportedTicketWatch
+      ? 'Ticket monitoring unavailable'
+      : status == AgentStatus.active && needsSourceResolution
       ? 'Needs source'
       : switch (status) {
           AgentStatus.active => 'Active',

@@ -338,8 +338,10 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                 ),
                 if (a.needsSourceResolution) ...[
                   const SizedBox(height: 12),
-                  const Text(
-                    'This task is waiting for source resolution. No price has been checked. Empty checks will not repeat.',
+                  Text(
+                    a.isUnsupportedTicketWatch
+                        ? 'Ticket-price monitoring is unavailable. The saved task and target are unchanged; no automatic checks will run.'
+                        : 'This task is waiting for source resolution. No price has been checked. Empty checks will not repeat.',
                   ),
                 ],
                 const SizedBox(height: 16),
@@ -393,7 +395,8 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                if (a.sourceUrl != null &&
+                if (!a.isUnsupportedTicketWatch &&
+                    a.sourceUrl != null &&
                     PageValueFetcher.sourceIssue(a.sourceUrl!) != null)
                   Card(
                     child: Padding(
@@ -419,8 +422,10 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                           ),
                           const SizedBox(height: 8),
                           SelectableText(
-                            a.sourceUrl ??
-                                'Manual value watch - no page linked',
+                            a.isUnsupportedTicketWatch
+                                ? 'Ticket monitoring unavailable — saved task retained'
+                                : a.sourceUrl ??
+                                      'Manual value watch - no page linked',
                           ),
                           const SizedBox(height: 8),
                           Text(
@@ -497,7 +502,9 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                 ),
                 _row(
                   'Next check',
-                  a.needsSourceResolution
+                  a.isUnsupportedTicketWatch
+                      ? 'Not scheduled — ticket monitoring unavailable'
+                      : a.needsSourceResolution
                       ? 'Waiting for a confirmed source'
                       : a.nextCheckAt == null
                       ? '-'
@@ -505,7 +512,8 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                 ),
                 if (a.type == AgentType.valueWatch) ...[
                   const SizedBox(height: 4),
-                  if (a.sourceUrl != null &&
+                  if (!a.isUnsupportedTicketWatch &&
+                      a.sourceUrl != null &&
                       PageValueFetcher.bookMyShowApiUrl(a.sourceUrl!) != null)
                     OutlinedButton.icon(
                       icon: const Icon(Icons.public),
@@ -549,12 +557,14 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                     onPressed: _findSource,
                     icon: const Icon(Icons.search),
                     label: Text(
-                      a.needsSourceResolution
+                      a.isUnsupportedTicketWatch
+                          ? 'View ticket-check limits'
+                          : a.needsSourceResolution
                           ? 'Find matching source'
                           : 'Find a different source',
                     ),
                   ),
-                  if (!a.isTextWatch)
+                  if (!a.isTextWatch && !a.isUnsupportedTicketWatch)
                     OutlinedButton.icon(
                       onPressed: _updateValue,
                       icon: const Icon(Icons.edit),
@@ -566,7 +576,7 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                       icon: const Icon(Icons.adjust),
                       label: const Text('Edit target'),
                     ),
-                  if (!a.isTextWatch)
+                  if (!a.isTextWatch && !a.isUnsupportedTicketWatch)
                     OutlinedButton.icon(
                       onPressed: _setSourcePage,
                       icon: const Icon(Icons.link),
