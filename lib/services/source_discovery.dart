@@ -340,6 +340,21 @@ class SourceCandidate {
   });
 }
 
+/// A page worth inspecting, never a current reading or activation credential.
+/// Deliberately not a SourceCandidate: it cannot enter ReviewedSource.
+class ReviewOnlySource {
+  final Uri url;
+  final String product;
+  final List<String> blockers;
+  final List<String> reportedOffers;
+  const ReviewOnlySource({
+    required this.url,
+    required this.product,
+    required this.blockers,
+    required this.reportedOffers,
+  });
+}
+
 /// Discovery requires stronger evidence than the old generic "first currency
 /// value" extractor. Search snippets are never a price or matching proof.
 class SourceCandidateValidator {
@@ -519,12 +534,165 @@ class SourceCandidateValidator {
       checkedAt: now ?? DateTime.now(),
     );
   }
+
+  /// Retain useful structured product pages without granting monitoring status.
+  /// Search snippets/currency/domain never prove identity, stock or market.
+  static ReviewOnlySource? reviewOnly(DiscoverySpec spec, ProductPage page) {
+    if (spec.kind != 'productPrice' ||
+        page.status != 200 ||
+        !publicHttps(page.finalUrl) ||
+        page.body.length > 2000000 ||
+        validate(spec, page) != null) {
+      return null;
+    }
+    final doc = html.parse(page.body);
+    if (doc.querySelector('input[type="password"],#challenge-form') != null) {
+      return null;
+    }
+    final products = <Map>[];
+    void collect(dynamic node) {
+      if (node is List) {
+        for (final n in node) {
+          collect(n);
+        }
+      }
+      if (node is Map) {
+        final type = node['@type'];
+        if (type == 'Product' || type is List && type.contains('Product')) {
+          products.add(node);
+        }
+        if (node['@graph'] != null) collect(node['@graph']);
+      }
+    }
+
+    for (final script in doc.querySelectorAll(
+      'script[type="application/ld+json"]',
+    )) {
+      try {
+        collect(jsonDecode(script.text));
+      } catch (_) {
+        /* not evidence */
+      }
+    }
+    if (products.length != 1) return null;
+    final product = products.single;
+    final name = product['name']?.toString().trim() ?? '';
+    final exact = DiscoveryTaskParser.identityMatches(name, spec);
+    // General product titles often append descriptions. These can be leads,
+    // but never pass as verified identities. iPhone's variant rules stay strict.
+    String words(String s) =>
+        s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
+    final tokens = words(spec.model)
+        .split(' ')
+        .where((t) => t.isNotEmpty)
+        .toList();
+    final nameTokens = words(name).split(' ').toSet();
+    if (!exact &&
+        (RegExp(r'\biphone\b', caseSensitive: false).hasMatch(spec.model) ||
+            tokens.isEmpty ||
+            !tokens.every(nameTokens.contains))) {
+      return null;
+    }
+    if (spec.colour != null &&
+        !RegExp(
+          '\\b${RegExp.escape(spec.colour!)}\\b',
+          caseSensitive: false,
+        ).hasMatch(name)) {
+      return null;
+    }
+    if (spec.reviewedProduct != null &&
+        words(name) != words(spec.reviewedProduct!)) {
+      return null;
+    }
+    final productUrl = Uri.tryParse(product['url']?.toString() ?? '');
+    if (productUrl == null ||
+        productUrl.host != page.finalUrl.host ||
+        productUrl.path != page.finalUrl.path ||
+        !publicHttps(productUrl)) {
+      return null;
+    }
+    final raw = product['offers'];
+    final offers = raw is List ? raw : [raw];
+    final blockers = <String>[];
+    if (!exact) {
+      blockers.add('Exact product identity is not verified by this adapter.');
+    }
+    if (offers.length != 1) {
+      blockers.add(
+        '${offers.length} offers are listed. A single exact variant and offer must be verified.',
+      );
+    }
+    final reports = <String>[];
+    final missingCountry = <String>[];
+    for (var i = 0; i < offers.length && i < 12; i++) {
+      final offer = offers[i];
+      if (offer is! Map || offer['@type'] != 'Offer') {
+        blockers.add('Offer ${i + 1}: unsupported offer structure.');
+        continue;
+      }
+      final label = 'Offer ${i + 1}';
+      final region = offer['eligibleRegion'];
+      final regionCode = region is Map
+          ? region['name']?.toString()
+          : region?.toString();
+      if (regionCode == null || regionCode.trim().isEmpty) {
+        missingCountry.add('${i + 1}');
+      } else if (regionCode.toUpperCase() != spec.country.toUpperCase()) {
+        blockers.add(
+          '$label: eligible country does not match ${spec.country}.',
+        );
+      }
+      final price = double.tryParse(offer['price']?.toString() ?? '');
+      if (price == null || !price.isFinite || price <= 0) {
+        blockers.add('$label: no valid price.');
+      }
+      if (offer['priceCurrency'] != spec.currency) {
+        blockers.add('$label: currency does not match ${spec.currency}.');
+      }
+      final stock = offer['availability']?.toString() ?? '';
+      if (![
+        'https://schema.org/InStock',
+        'http://schema.org/InStock',
+        'InStock',
+      ].contains(stock)) {
+        blockers.add('$label: in-stock availability is not verified.');
+      }
+      final condition = offer['itemCondition']?.toString();
+      if (condition != null &&
+          !condition.endsWith('/NewCondition') &&
+          condition != 'NewCondition') {
+        blockers.add('$label: not a verified new-condition offer.');
+      }
+      // Report exactly what is present, not a selected/current price or variant.
+      reports.add(
+        '$label: ${offer['name'] ?? 'variant not specified'}; '
+        '${price != null && price.isFinite && price > 0 ? '${offer['priceCurrency'] ?? 'currency missing'} ${price.toStringAsFixed(2)}' : 'price missing'}',
+      );
+    }
+    if (missingCountry.isNotEmpty) {
+      blockers.add(
+        '${missingCountry.length == 1 ? 'Offer' : 'Offers'} ${missingCountry.join(', ')}: seller does not specify an eligible country.',
+      );
+    }
+    if (blockers.isEmpty) return null;
+    return ReviewOnlySource(
+      url: page.finalUrl,
+      product: name,
+      blockers: List.unmodifiable(blockers),
+      reportedOffers: List.unmodifiable(reports),
+    );
+  }
 }
 
 class DiscoveryResult {
   final List<SourceCandidate> candidates;
   final String? issue;
-  const DiscoveryResult(this.candidates, [this.issue]);
+  final List<ReviewOnlySource> reviewOnly;
+  const DiscoveryResult(
+    this.candidates, [
+    this.issue,
+    this.reviewOnly = const [],
+  ]);
 }
 
 class SourceDiscoveryService {
@@ -534,12 +702,43 @@ class SourceDiscoveryService {
     required this.searchProvider,
     required this.pageReader,
   });
+
+  /// Fresh strict read before returning a source to the creation/resolution flow.
+  /// A changed price/page requires a new review, not silent substitution.
+  Future<SourceCandidate?> revalidate(
+    DiscoverySpec spec,
+    SourceCandidate selected, {
+    DateTime? now,
+  }) async {
+    final time = now ?? DateTime.now();
+    final age = time.difference(selected.checkedAt);
+    if (age.isNegative || age > const Duration(minutes: 5)) return null;
+    try {
+      final page = await pageReader
+          .read(selected.url)
+          .timeout(const Duration(seconds: 8));
+      if (page.finalUrl != selected.url) return null;
+      final fresh = SourceCandidateValidator.validate(spec, page, now: time);
+      if (fresh == null ||
+          fresh.product != selected.product ||
+          fresh.price != selected.price ||
+          fresh.country != selected.country ||
+          fresh.currency != selected.currency) {
+        return null;
+      }
+      return fresh;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<DiscoveryResult> discover(DiscoverySpec spec) async {
     try {
       final links = await searchProvider
           .search(spec)
           .timeout(const Duration(seconds: 12));
       final hits = <SourceCandidate>[];
+      final review = <ReviewOnlySource>[];
       final seen = <String>{};
       for (final link in links.take(5)) {
         if (!SourceCandidateValidator.publicHttps(link.url) ||
@@ -553,6 +752,11 @@ class SourceDiscoveryService {
           final match = SourceCandidateValidator.validate(spec, page);
           if (match != null && !hits.any((h) => h.url == match.url)) {
             hits.add(match);
+          } else if (match == null) {
+            final lead = SourceCandidateValidator.reviewOnly(spec, page);
+            if (lead != null && !review.any((h) => h.url == lead.url)) {
+              review.add(lead);
+            }
           }
         } catch (_) {
           /* blocked/unreadable page isn't a candidate */
@@ -560,11 +764,12 @@ class SourceDiscoveryService {
       }
       return DiscoveryResult(
         List.unmodifiable(hits),
-        hits.isEmpty
+        hits.isEmpty && review.isEmpty
             ? (spec.isText
                   ? 'No readable public page matching this subject was verified. No watch was started.'
                   : 'No exact, in-stock product page with a readable current price was verified. Try again later or use an optional manual URL. No watch was started.')
             : null,
+        List.unmodifiable(review),
       );
     } on DiscoveryUnavailable catch (e) {
       return DiscoveryResult(const [], e.message);

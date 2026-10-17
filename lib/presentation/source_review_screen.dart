@@ -102,6 +102,45 @@ class _SourceReviewScreenState extends State<SourceReviewScreen> {
     });
   }
 
+  Future<void> _useSource() async {
+    final selected = _selected;
+    final spec = _spec;
+    if (selected == null || spec == null || _busy) return;
+    final revision = _revision;
+    final request = ++_request;
+    setState(() => _busy = true);
+    final fresh = await widget.discovery.revalidate(spec, selected);
+    if (!mounted || revision != _revision || request != _request) return;
+    if (fresh == null) {
+      setState(() {
+        _busy = false;
+        _selected = null;
+        _result = null;
+        _questions = [
+          'The source changed, expired or could not be verified. Find matching pages again; no watch was started.',
+        ];
+      });
+      return;
+    }
+    Navigator.pop(
+      context,
+      ReviewedSource(
+        DiscoverySpec(
+          model: spec.model,
+          kind: spec.kind,
+          phrase: spec.phrase,
+          storageGb: spec.storageGb,
+          target: widget.fixedTarget ?? spec.target,
+          condition: widget.fixedCondition ?? spec.condition,
+          country: spec.country,
+          currency: spec.currency,
+          colour: spec.colour,
+        ),
+        fresh,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = Theme.of(context).colorScheme;
@@ -220,30 +259,63 @@ class _SourceReviewScreenState extends State<SourceReviewScreen> {
               ),
             const SizedBox(height: 16),
             FilledButton(
-              onPressed: _selected == null
-                  ? null
-                  : () {
-                      final spec = _spec!;
-                      Navigator.pop(
-                        context,
-                        ReviewedSource(
-                          DiscoverySpec(
-                            model: spec.model,
-                            kind: spec.kind,
-                            phrase: spec.phrase,
-                            storageGb: spec.storageGb,
-                            target: widget.fixedTarget ?? spec.target,
-                            condition: widget.fixedCondition ?? spec.condition,
-                            country: spec.country,
-                            currency: spec.currency,
-                            colour: spec.colour,
-                          ),
-                          _selected!,
-                        ),
-                      );
-                    },
+              onPressed: _selected == null || _busy ? null : _useSource,
               child: const Text('Use this source'),
             ),
+          ],
+          if (_result != null && _result!.reviewOnly.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            Text(
+              'Pages needing more evidence',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Review only — unable to monitor. Choosing a country does not verify the seller’s market or select an offer.',
+            ),
+            for (final page in _result!.reviewOnly)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        page.product,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(page.url.toString()),
+                      const SizedBox(height: 12),
+                      const Text('Missing or conflicting evidence'),
+                      for (final blocker in page.blockers)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(blocker),
+                        ),
+                      const SizedBox(height: 12),
+                      if (page.reportedOffers.isNotEmpty)
+                        const Text(
+                          'Page-reported offers — not verified prices',
+                        ),
+                      for (final offer in page.reportedOffers)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(offer),
+                        ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Lookout needs one exact in-stock offer and a verified market before it can monitor this page. Try another search.',
+                      ),
+                      const SizedBox(height: 12),
+                      const FilledButton(
+                        onPressed: null,
+                        child: Text('Unable to monitor'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
           ],
           const SizedBox(height: 20),
           OutlinedButton(

@@ -110,6 +110,33 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
     }
     setState(() => _creating = true);
     try {
+      final reviewed = _reviewed;
+      if (reviewed != null) {
+        final task = _controller.text;
+        final url = _sourceUrl;
+        final fresh = await (widget.discovery ?? defaultSourceDiscovery())
+            .revalidate(reviewed.spec, reviewed.candidate);
+        if (!mounted ||
+            _reviewed != reviewed ||
+            _controller.text != task ||
+            _sourceUrl != url) {
+          return;
+        }
+        if (fresh == null) {
+          setState(() {
+            _reviewed = null;
+            _urlController.clear();
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'The reviewed source changed, expired or could not be verified. Find and review it again; no watch was created.',
+              ),
+            ),
+          );
+          return;
+        }
+      }
       await widget.repo.insertAgent(
         Agent(
           title: p.title,
