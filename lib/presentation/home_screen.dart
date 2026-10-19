@@ -1,4 +1,5 @@
 import 'press_feedback.dart';
+import '../../update/app_update.dart';
 
 import 'package:flutter/material.dart';
 
@@ -26,6 +27,10 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    // In-app self-update: check the latest release once after first frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) maybePromptUpdate(context);
+    });
     _refresh();
   }
 
