@@ -93,6 +93,11 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         actions: [
           IconButton(
+            onPressed: () => checkUpdateManually(context),
+            tooltip: 'Check for updates',
+            icon: const Icon(Icons.system_update_alt),
+          ),
+          IconButton(
             onPressed: _openActivity,
             tooltip: 'Task histories',
             icon: const Icon(Icons.history_rounded),
