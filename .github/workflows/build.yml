@@ -27,7 +27,10 @@ jobs:
           GP
       - run: flutter pub get
       - run: flutter test
-      - run: flutter build apk --release --target-platform android-arm64 --build-number=${{ github.run_number }} --build-name=$(grep '^version:' pubspec.yaml | sed -E 's/version: ([0-9.]+).*/\1/') -v
+      - name: Build APK
+        run: |
+          APP_VERSION=$(grep '^version:' pubspec.yaml | sed -E 's/version: ([0-9.]+).*/\1/')
+          flutter build apk --release --target-platform android-arm64 --build-number=${{ github.run_number }} --build-name="$APP_VERSION" -v
       - run: mv build/app/outputs/flutter-apk/app-release.apk "build/app/outputs/flutter-apk/Lookout.apk"
       - uses: actions/upload-artifact@v4
         with:
