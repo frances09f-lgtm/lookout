@@ -260,7 +260,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           )
                         else
                           ..._agents.map(
-                            (a) => _AgentCard(
+                            (a) => AgentCard(
                               agent: a,
                               onTap: () async {
                                 await Navigator.of(context).push(
@@ -308,13 +308,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class _AgentCard extends StatelessWidget {
+class AgentCard extends StatelessWidget {
   final Agent agent;
   final VoidCallback onTap;
   final VoidCallback onRunNow;
   final VoidCallback onHistory;
   final VoidCallback onPauseResume;
-  const _AgentCard({
+  const AgentCard({
     required this.agent,
     required this.onTap,
     required this.onRunNow,
@@ -453,12 +453,22 @@ class _AgentCard extends StatelessWidget {
                 const SizedBox(height: 10),
                 Wrap(
                   children: [
+                    // Pastel card keeps its pastel fill in dark mode, so these
+                    // buttons must use dark ink in BOTH themes - the theme's
+                    // textButtonTheme foreground (onSurface) is pale in dark
+                    // mode and vanishes on the pastel card.
                     TextButton(
                       onPressed: onRunNow,
+                      style: TextButton.styleFrom(
+                        foregroundColor: XColors.ink,
+                      ),
                       child: const Text('Run now'),
                     ),
                     TextButton(
                       onPressed: onHistory,
+                      style: TextButton.styleFrom(
+                        foregroundColor: XColors.ink,
+                      ),
                       child: const Text('History'),
                     ),
                   ],
