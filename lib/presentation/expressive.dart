@@ -27,9 +27,32 @@ class XColors {
     (peach, peachDeep),
   ];
 
+
   static (Color, Color) pastelFor(int seed) =>
       cardPastels[seed.abs() % cardPastels.length];
 }
+
+/// Theme-aware ink colors for text/icons sitting on the canvas or on
+/// panel surfaces (panels flip dark in dark mode; pastels never flip -
+/// text on pastel always uses XColors.ink / inkSoft / the deep accent).
+bool xIsDark(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark;
+
+Color xInk(BuildContext context) =>
+    xIsDark(context) ? const Color(0xFFF2EDE6) : XColors.ink;
+
+Color xInkSoft(BuildContext context) =>
+    xIsDark(context) ? const Color(0xFFB4ABA0) : XColors.inkSoft;
+
+Color xPanel(BuildContext context) =>
+    xIsDark(context) ? const Color(0xFF23201C) : XColors.white;
+
+Color xTrack(BuildContext context) =>
+    xIsDark(context) ? const Color(0xFF2A2521) : const Color(0xFFEDE8E0);
+
+Color xMintOnCanvas(BuildContext context) =>
+    xIsDark(context) ? const Color(0xFF8FD6A6) : XColors.mintDeep;
+
 
 /// The expressive switch style used on cards and toggle tiles.
 Widget xSwitch({
@@ -39,14 +62,16 @@ Widget xSwitch({
 }) {
   return Transform.scale(
     scale: 1.12,
-    child: Switch(
-      value: value,
-      onChanged: onChanged,
-      activeThumbColor: Colors.white,
-      activeTrackColor: accent,
-      inactiveThumbColor: XColors.inkSoft,
-      inactiveTrackColor: const Color(0xFFEDE8E0),
-      trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+    child: Builder(
+      builder: (context) => Switch(
+        value: value,
+        onChanged: onChanged,
+        activeThumbColor: Colors.white,
+        activeTrackColor: accent,
+        inactiveThumbColor: xInkSoft(context),
+        inactiveTrackColor: xTrack(context),
+        trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+      ),
     ),
   );
 }
@@ -88,7 +113,7 @@ class XToggleTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       decoration: BoxDecoration(
-        color: value ? bg : XColors.white,
+        color: value ? bg : xPanel(context),
         borderRadius: BorderRadius.circular(28),
       ),
       child: Row(
@@ -98,11 +123,11 @@ class XToggleTile extends StatelessWidget {
             curve: Curves.easeOutBack,
             padding: const EdgeInsets.all(11),
             decoration: BoxDecoration(
-              color: value ? accent : const Color(0xFFEDE8E0),
+              color: value ? accent : xTrack(context),
               borderRadius: BorderRadius.circular(18),
             ),
             child: Icon(icon,
-                size: 22, color: value ? Colors.white : XColors.inkSoft),
+                size: 22, color: value ? Colors.white : xInkSoft(context)),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -110,12 +135,15 @@ class XToggleTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w700)),
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: value ? XColors.ink : xInk(context))),
                 const SizedBox(height: 2),
                 Text(subtitle,
-                    style: const TextStyle(
-                        fontSize: 12.5, color: XColors.inkSoft)),
+                    style: TextStyle(
+                        fontSize: 12.5,
+                        color: value ? XColors.inkSoft : xInkSoft(context))),
               ],
             ),
           ),
@@ -155,18 +183,25 @@ class XDock extends StatelessWidget {
             padding: EdgeInsets.symmetric(
                 horizontal: sel ? 16 : 10, vertical: 10),
             decoration: BoxDecoration(
-              color: sel ? XColors.ink : Colors.transparent,
+              color: sel ? xInk(context) : Colors.transparent,
               borderRadius: BorderRadius.circular(24),
             ),
             child: Row(
               children: [
                 Icon(icon,
-                    size: 22, color: sel ? Colors.white : XColors.inkSoft),
+                    size: 22,
+                    color: sel
+                        ? (xIsDark(context)
+                            ? XColors.ink
+                            : Colors.white)
+                        : xInkSoft(context)),
                 if (sel) ...[
                   const SizedBox(width: 8),
                   Text(label,
-                      style: const TextStyle(
-                          color: Colors.white,
+                      style: TextStyle(
+                          color: xIsDark(context)
+                              ? XColors.ink
+                              : Colors.white,
                           fontWeight: FontWeight.w700,
                           fontSize: 13)),
                 ],
@@ -188,7 +223,7 @@ class XDock extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         decoration: BoxDecoration(
-          color: XColors.white,
+          color: xPanel(context),
           borderRadius: BorderRadius.circular(36),
           boxShadow: const [
             BoxShadow(

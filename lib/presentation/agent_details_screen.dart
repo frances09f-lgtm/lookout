@@ -315,7 +315,7 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                     final running = a.status == AgentStatus.active;
                     final (bg, accent) = running
                         ? XColors.pastelFor(a.id ?? a.title.hashCode)
-                        : (XColors.white, XColors.inkSoft);
+                        : (xPanel(context), XColors.inkSoft);
                     return Container(
                       padding: const EdgeInsets.all(22),
                       decoration: BoxDecoration(
@@ -334,7 +334,7 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                                   decoration: BoxDecoration(
                                     color: running
                                         ? accent
-                                        : const Color(0xFFEDE8E0),
+                                        : xTrack(context),
                                     borderRadius: BorderRadius.circular(16),
                                   ),
                                   child: Text(
@@ -343,7 +343,7 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                                   style: TextStyle(
                                     color: running
                                         ? Colors.white
-                                        : XColors.inkSoft,
+                                        : xInkSoft(context),
                                     fontSize: 11,
                                     fontWeight: FontWeight.w800,
                                     letterSpacing: 0.6,
@@ -372,7 +372,7 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: -2,
                                 height: 1,
-                                color: running ? accent : XColors.inkSoft,
+                                color: running ? accent : xInkSoft(context),
                               ),
                             ),
                           ] else
@@ -383,7 +383,11 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                             style: Theme.of(context)
                                 .textTheme
                                 .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w700),
+                                ?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: running
+                                        ? XColors.ink
+                                        : xInk(context)),
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -391,7 +395,10 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                             style: Theme.of(context)
                                 .textTheme
                                 .bodySmall
-                                ?.copyWith(color: XColors.inkSoft),
+                                ?.copyWith(
+                                    color: running
+                                        ? XColors.inkSoft
+                                        : xInkSoft(context)),
                           ),
                         ],
                       ),

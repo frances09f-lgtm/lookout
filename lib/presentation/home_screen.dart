@@ -14,8 +14,17 @@ import 'create_agent_screen.dart';
 class HomeScreen extends StatefulWidget {
   final AgentRepository repo;
   final AgentChecker checker;
+  final bool isDark;
+  final ValueChanged<bool> onToggleTheme;
 
-  const HomeScreen({super.key, required this.repo, required this.checker});
+  static void _noopTheme(bool _) {}
+
+  const HomeScreen(
+      {super.key,
+      required this.repo,
+      required this.checker,
+      this.isDark = false,
+      this.onToggleTheme = _noopTheme});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -117,11 +126,14 @@ class _HomeScreenState extends State<HomeScreen> {
                             Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: XColors.ink,
+                                color: xInk(context),
                                 borderRadius: BorderRadius.circular(16),
                               ),
-                              child: const Icon(Icons.visibility_rounded,
-                                  color: Colors.white, size: 22),
+                              child: Icon(Icons.visibility_rounded,
+                                  color: xIsDark(context)
+                                      ? XColors.ink
+                                      : Colors.white,
+                                  size: 22),
                             ),
                             const SizedBox(width: 12),
                             const Expanded(
@@ -133,11 +145,24 @@ class _HomeScreenState extends State<HomeScreen> {
                                       letterSpacing: -0.8)),
                             ),
                             IconButton(
+                              onPressed: () =>
+                                  widget.onToggleTheme(!widget.isDark),
+                              tooltip: widget.isDark
+                                  ? 'Switch to light mode'
+                                  : 'Switch to dark mode',
+                              icon: Icon(
+                                widget.isDark
+                                    ? Icons.wb_sunny_rounded
+                                    : Icons.dark_mode_rounded,
+                                color: xInkSoft(context),
+                              ),
+                            ),
+                            IconButton(
                               onPressed: () => checkUpdateManually(context),
                               tooltip: 'Check for updates',
-                              icon: const Icon(
+                              icon: Icon(
                                   Icons.system_update_alt_rounded,
-                                  color: XColors.inkSoft),
+                                  color: xInkSoft(context)),
                             ),
                           ],
                         ),
@@ -155,7 +180,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         Text(
                           'Your reminders and value watches, together.',
                           style: theme.textTheme.bodyMedium?.copyWith(
-                            color: XColors.inkSoft,
+                            color: xInkSoft(context),
                           ),
                         ),
                         const SizedBox(height: 20),
@@ -191,12 +216,12 @@ class _HomeScreenState extends State<HomeScreen> {
                           children: [
                             Expanded(
                               child: xSectionLabel(
-                                  'Watching now', XColors.mintDeep),
+                                  'Watching now', xMintOnCanvas(context)),
                             ),
                             Text(
                               '${_agents.length} total',
                               style: theme.textTheme.labelMedium?.copyWith(
-                                color: XColors.inkSoft,
+                                color: xInkSoft(context),
                               ),
                             ),
                           ],
@@ -219,6 +244,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   'No agents yet.',
                                   style: theme.textTheme.titleMedium?.copyWith(
                                     fontWeight: FontWeight.w700,
+                                    color: XColors.ink,
                                   ),
                                 ),
                                 const SizedBox(height: 8),
@@ -302,9 +328,10 @@ class _AgentCard extends StatelessWidget {
     final running = agent.status == AgentStatus.active;
     final toggleable = running || agent.status == AgentStatus.paused;
     final (bg, accent) = toggleable
-        ? (running ? XColors.pastelFor(agent.id ?? agent.title.hashCode)
-            : (XColors.white, XColors.peachDeep))
-        : (XColors.white, XColors.inkSoft);
+        ? (running
+            ? XColors.pastelFor(agent.id ?? agent.title.hashCode)
+            : (xPanel(context), XColors.peachDeep))
+        : (xPanel(context), XColors.inkSoft);
     final number = agent.currentValue;
 
     return Container(
@@ -345,6 +372,7 @@ class _AgentCard extends StatelessWidget {
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w700,
                           height: 1.25,
+                          color: running ? XColors.ink : xInk(context),
                         ),
                       ),
                     ),
@@ -359,15 +387,15 @@ class _AgentCard extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFEDE8E0),
+                          color: xTrack(context),
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: Text(
                           agent.statusLabel,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
-                            color: XColors.inkSoft,
+                            color: xInkSoft(context),
                           ),
                         ),
                       ),
@@ -377,7 +405,7 @@ class _AgentCard extends StatelessWidget {
                 Text(
                   '${agent.typeLabel} · ${agent.conditionLabel}',
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: XColors.inkSoft,
+                    color: running ? XColors.inkSoft : xInkSoft(context),
                   ),
                 ),
                 if (agent.type == AgentType.valueWatch && number != null) ...[
@@ -393,7 +421,7 @@ class _AgentCard extends StatelessWidget {
                           fontSize: 30,
                           fontWeight: FontWeight.w800,
                           letterSpacing: -0.8,
-                          color: running ? accent : XColors.inkSoft,
+                          color: running ? accent : xInkSoft(context),
                         ),
                       ),
                       if (agent.lastCheckedAt != null) ...[
@@ -405,7 +433,7 @@ class _AgentCard extends StatelessWidget {
                               'last checked ${_fmt(agent.lastCheckedAt!)}',
                               overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: XColors.inkSoft,
+                                color: running ? XColors.inkSoft : xInkSoft(context),
                               ),
                             ),
                           ),
