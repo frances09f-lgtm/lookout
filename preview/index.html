@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lookout UI draft</title>
+<style>
+:root{
+  --bg:#FAF7F2; --panel:#FFFFFF; --ink:#201A17; --ink-soft:#6F675F;
+  --outline:#E3DDD3; --track:#EDE8E0;
+  --mint:#D8F0DC; --mint-deep:#1E6B3C;
+  --lavender:#E9E2FB; --lavender-deep:#5A3FA8;
+  --peach:#FFE4CE; --peach-deep:#9A4A12;
+  --sky:#D9EAFB; --sky-deep:#1D5A96;
+  --lemon:#F7F0C8; --lemon-deep:#77680A;
+  --dock:#FFFFFF; --shadow:0 10px 30px rgba(32,26,23,.12);
+}
+html[data-theme="dark"]{
+  --bg:#171411; --panel:#23201C; --ink:#F2EDE6; --ink-soft:#B4ABA0;
+  --outline:#3A342E; --track:#2A2521;
+  --dock:#211D19; --shadow:0 10px 30px rgba(0,0,0,.45);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  font-family:'Roboto','Segoe UI',system-ui,sans-serif;
+  background:var(--bg); color:var(--ink);
+  transition:background .25s,color .25s;
+}
+.banner{background:var(--sky);color:#12314F;padding:.55rem 1rem;font-size:.8rem;text-align:center}
+.banner b{display:block;font-size:.95rem}
+html[data-theme="dark"] .banner{color:#12314F}
+.screen{max-width:430px;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column;position:relative;padding-bottom:110px}
+header{display:flex;align-items:center;gap:.7rem;padding:1.1rem 1rem .4rem}
+.logo{width:44px;height:44px;border-radius:14px;background:var(--ink);display:grid;place-items:center;flex:none}
+.logo svg{width:24px;height:24px}
+html[data-theme="dark"] .logo svg{stroke:#201A17}
+.logo svg{stroke:#fff}
+header h1{font-size:1.5rem;font-weight:800;letter-spacing:-.02em;flex:1}
+.iconbtn{background:none;border:none;cursor:pointer;padding:.5rem;border-radius:12px;color:var(--ink-soft)}
+.iconbtn:hover{background:var(--track)}
+.iconbtn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.hero{padding:.4rem 1.2rem 0}
+.hero h2{font-size:2rem;font-weight:800;letter-spacing:-.03em}
+.hero p{color:var(--ink-soft);margin-top:.2rem;font-size:.95rem}
+.pills{display:flex;gap:.6rem;padding:1rem 1.2rem 0}
+.pill{border-radius:999px;padding:.55rem 1.1rem;font-weight:700;font-size:.92rem;display:flex;gap:.45rem;align-items:baseline}
+.pill .n{font-size:1.05rem}
+.pill.mint{background:var(--mint);color:var(--mint-deep)}
+.pill.peach{background:var(--peach);color:var(--peach-deep)}
+.pill.lavender{background:var(--lavender);color:var(--lavender-deep)}
+.sect{display:flex;justify-content:space-between;align-items:baseline;padding:1.2rem 1.2rem .6rem}
+.sect .label{font-size:.78rem;letter-spacing:.14em;font-weight:800;color:var(--mint-deep);text-transform:uppercase}
+html[data-theme="dark"] .sect .label{color:#7BD8A8}
+.sect .count{color:var(--ink-soft);font-size:.8rem}
+.cards{padding:0 1rem;display:flex;flex-direction:column;gap:.9rem}
+.card{border-radius:28px;padding:1.1rem 1.2rem;transition:background .25s;cursor:pointer}
+.card.pastel{background:var(--mint)}
+.card.pastel.lav{background:var(--lavender)}
+.card.pastel.pch{background:var(--peach)}
+.card.pastel.sky{background:var(--sky)}
+.card.plain{background:var(--panel)}
+.card .row1{display:flex;align-items:flex-start;gap:.8rem}
+.card .tick{width:44px;height:44px;border-radius:16px;display:grid;place-items:center;flex:none;color:#fff}
+.card .tick svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.card .titles{flex:1;min-width:0}
+.card h3{font-size:1.02rem;font-weight:700;line-height:1.25;color:#201A17}
+.card.plain h3{color:var(--ink)}
+.card .sub{font-size:.82rem;color:#6F675F;margin-top:.25rem}
+.card.plain .sub{color:var(--ink-soft)}
+.switch{width:56px;height:32px;border-radius:999px;background:#1E6B3C;position:relative;flex:none;cursor:pointer;border:none;transition:background .2s;margin-top:.2rem}
+.switch::after{content:"";position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:#fff;transition:left .2s,right .2s}
+.switch.off{background:var(--track)}
+.switch.off::after{right:auto;left:4px;background:var(--ink-soft)}
+.card .value{font-size:1.7rem;font-weight:800;color:#1E6B3C;margin-top:.7rem;letter-spacing:-.02em}
+.card.pastel.lav .value{color:#5A3FA8}
+.card.pastel.pch .value{color:#9A4A12}
+.card.pastel.sky .value{color:#1D5A96}
+.card.plain .value{color:var(--ink)}
+.card .checked{font-size:.78rem;color:#6F675F;margin:.15rem 0 0 .5rem;display:inline-block}
+.card.plain .checked{color:var(--ink-soft)}
+.card .actions{display:flex;gap:.2rem;margin-top:.6rem;flex-wrap:wrap}
+.btn{background:none;border:none;cursor:pointer;font:inherit;font-weight:700;font-size:.92rem;padding:.55rem .9rem;border-radius:999px;color:#201A17}
+.card.plain .btn{color:var(--ink)}
+.btn:hover{background:rgba(0,0,0,.06)}
+html[data-theme="dark"] .card.plain .btn:hover{background:rgba(255,255,255,.08)}
+.btn.primary{background:#201A17;color:#fff}
+html[data-theme="dark"] .btn.primary{background:#F2EDE6;color:#201A17}
+.empty{padding:3rem 2rem;text-align:center;color:var(--ink-soft)}
+.empty .big{font-size:1.2rem;font-weight:700;color:var(--ink);margin-bottom:.4rem}
+.dock{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;width:min(400px,92vw);background:var(--dock);border-radius:999px;box-shadow:var(--shadow);display:flex;align-items:center;padding:.5rem;z-index:5}
+.dock .tab{display:flex;align-items:center;gap:.45rem;border:none;background:none;font:inherit;font-weight:700;font-size:.92rem;color:var(--ink-soft);padding:.7rem 1.1rem;border-radius:999px;cursor:pointer}
+.dock .tab.sel{background:var(--ink);color:var(--bg)}
+.dock .tab svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.dock .fab{margin-left:auto;width:52px;height:52px;border-radius:50%;border:none;background:#1E6B3C;color:#fff;font-size:1.7rem;line-height:1;cursor:pointer;display:grid;place-items:center}
+.actitem{display:flex;gap:.8rem;padding:.9rem 1.2rem;border-bottom:1px solid var(--outline);font-size:.9rem}
+.actitem .dot{width:10px;height:10px;border-radius:50%;margin-top:.35rem;flex:none}
+.actitem .when{color:var(--ink-soft);font-size:.76rem;margin-top:.15rem}
+.form{padding:1rem 1.2rem;display:flex;flex-direction:column;gap:1rem}
+.field label{display:block;font-size:.8rem;font-weight:700;color:var(--ink-soft);margin-bottom:.35rem}
+.field input,.field select{width:100%;padding:.85rem 1rem;border-radius:16px;border:1.5px solid var(--outline);background:var(--panel);color:var(--ink);font:inherit}
+.field input:focus{outline:2px solid var(--mint-deep);border-color:transparent}
+.chips{display:flex;gap:.5rem;flex-wrap:wrap}
+.chip{border:1.5px solid var(--outline);background:var(--panel);color:var(--ink);border-radius:999px;padding:.5rem .95rem;font:inherit;font-size:.86rem;cursor:pointer}
+.chip.sel{background:var(--mint);border-color:var(--mint);color:var(--mint-deep);font-weight:700}
+.toggleTile{display:flex;align-items:center;gap:.8rem;background:var(--lemon);border-radius:24px;padding:1rem 1.1rem}
+.toggleTile .tic{width:40px;height:40px;border-radius:14px;background:var(--lemon-deep);display:grid;place-items:center;color:#fff;flex:none}
+.toggleTile .tic svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.toggleTile .tt{flex:1}
+.toggleTile .tt b{display:block;font-size:.95rem;color:#201A17}
+.toggleTile .tt span{font-size:.78rem;color:#6F675F}
+.detail{padding:0 1.2rem;display:flex;flex-direction:column;gap:.9rem}
+.detail .kv{display:flex;justify-content:space-between;font-size:.9rem;padding:.35rem 0}
+.detail .kv span{color:var(--ink-soft)}
+.toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:.7rem 1.2rem;border-radius:14px;font-size:.86rem;opacity:0;pointer-events:none;transition:opacity .25s;z-index:9;max-width:88vw;text-align:center}
+.toast.show{opacity:1}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+<div class="banner"><b>Lookout UI draft</b>Clickable prototype of the Android app. Try the dock, switches, themes and Run now. Draft preview with sample data.</div>
+<div class="screen">
+  <header>
+    <div class="logo"><svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.6"/></svg></div>
+    <h1>Lookout</h1>
+    <button class="iconbtn" id="themeBtn" aria-label="Switch theme"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+    <button class="iconbtn" id="updateBtn" aria-label="Check for updates"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg></button>
+  </header>
+
+  <!-- WATCHES -->
+  <section id="s-home">
+    <div class="hero"><h2>Your watchlist.</h2><p>Your reminders and value watches, together.</p></div>
+    <div class="pills">
+      <div class="pill mint"><span class="n" id="cActive">1</span>Active</div>
+      <div class="pill peach"><span class="n" id="cPaused">1</span>Paused</div>
+      <div class="pill lavender"><span class="n" id="cDone">0</span>Done</div>
+    </div>
+    <div class="sect"><span class="label">Watching now</span><span class="count" id="total">2 total</span></div>
+    <div class="cards" id="cards"></div>
+  </section>
+
+  <!-- ACTIVITY -->
+  <section id="s-activity" class="hide">
+    <div class="hero"><h2>Activity.</h2><p>Every check, in order.</p></div>
+    <div style="margin-top:1rem;background:var(--panel);border-radius:24px;margin-left:1rem;margin-right:1rem;overflow:hidden" id="actlist"></div>
+  </section>
+
+  <!-- CREATE -->
+  <section id="s-create" class="hide">
+    <div class="hero"><h2>New watch.</h2><p>Say what to watch, in your words.</p></div>
+    <div class="form">
+      <div class="field"><label>What should Lookout watch?</label><input id="fTitle" value="Tell me when iphone 15 128gb becomes cheaper than ₹60,000"></div>
+      <div class="field"><label>Type</label><div class="chips" id="typeChips">
+        <button class="chip sel">Value watch</button><button class="chip">Reminder</button><button class="chip">Ticket watch</button>
+      </div></div>
+      <div class="field"><label>Notify below / above</label><input value="60000" inputmode="numeric"></div>
+      <div class="field"><label>Page link</label><input placeholder="https://... (leave empty for manual values)"></div>
+      <div class="field"><label>Check every</label><div class="chips"><button class="chip">15 min</button><button class="chip sel">30 min</button><button class="chip">1 hour</button><button class="chip">6 hours</button></div></div>
+      <div class="toggleTile"><div class="tic"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></div><div class="tt"><b>Notifications</b><span>Notifying when the condition matches</span></div><button class="switch" aria-label="Notifications"></button></div>
+      <button class="btn primary" id="saveBtn" style="padding:1rem">Save watch</button>
+    </div>
+  </section>
+
+  <!-- DETAILS -->
+  <section id="s-detail" class="hide">
+    <div class="hero"><h2 id="dTitle">Watch</h2><p id="dSub">Value watch</p></div>
+    <div class="detail" id="dBody" style="margin-top:1rem"></div>
+  </section>
+
+  <nav class="dock">
+    <button class="tab sel" id="dockWatches"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.6"/></svg>Watches</button>
+    <button class="tab" id="dockActivity"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></button>
+    <button class="fab" id="fab" aria-label="Create Agent">+</button>
+  </nav>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const $=s=>document.querySelector(s);
+const cards=[
+ {id:1,cls:'',icon:'M3 3l7.5 7.5M14 6l7-3-3 7M10 14l-7 3 3-7',title:'Tell me when iphone 15 128gb becomes cheaper than ₹60,000',sub:'Value watch · Notify when value drops below 60000',value:'67999',checked:'22/10 18:26',on:true},
+ {id:2,cls:'lav',icon:'M20 12L12 20l-8-8 8-8 8 8z',title:'Drishyam 3 ticket below ₹200',sub:'Ticket watch · waiting for source page',value:'—',checked:'never',on:false},
+];
+const activity=[
+ {c:'#1E6B3C',t:'iPhone 15 128GB checked: ₹67,999 (still above target)',w:'22/10 18:26 · page read'},
+ {c:'#1E6B3C',t:'iPhone 15 128GB checked: ₹68,499',w:'22/10 17:56 · page read'},
+ {c:'#9A4A12',t:'Drishyam 3: source page missing, check skipped',w:'22/10 17:26'},
+ {c:'#1E6B3C',t:'iPhone 15 128GB checked: ₹68,499',w:'22/10 17:26 · page read'},
+];
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2200)}
+function renderCards(){
+  $('#cards').innerHTML=cards.map(c=>`
+  <div class="card ${c.on?'pastel '+c.cls:'plain'}" data-id="${c.id}">
+    <div class="row1">
+      <div class="tick" style="background:${c.on?'var(--mint-deep)':'var(--track)'};${c.on?'':'color:var(--ink-soft)'}"><svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M21 7v4h-4"/></svg></div>
+      <div class="titles"><h3>${c.title}</h3><div class="sub">${c.sub}</div></div>
+      <button class="switch ${c.on?'':'off'}" data-t="${c.id}" aria-label="Pause or resume watch"></button>
+    </div>
+    <div><span class="value">${c.value}</span><span class="checked">last checked ${c.checked}</span></div>
+    <div class="actions">
+      <button class="btn" data-run="${c.id}">Run now</button>
+      <button class="btn" data-hist="${c.id}">History</button>
+    </div>
+  </div>`).join('');
+  $('#cActive').textContent=cards.filter(c=>c.on).length;
+  $('#cPaused').textContent=cards.filter(c=>!c.on).length;
+  $('#total').textContent=cards.length+' total';
+}
+function renderActivity(){
+  $('#actlist').innerHTML=activity.map(a=>`<div class="actitem"><div class="dot" style="background:${a.c}"></div><div><div>${a.t}</div><div class="when">${a.w}</div></div></div>`).join('');
+}
+function show(id){
+  ['#s-home','#s-activity','#s-create','#s-detail'].forEach(s=>$(s).classList.add('hide'));
+  $(id).classList.remove('hide');
+  $('#dockWatches').classList.toggle('sel',id==='#s-home'||id==='#s-detail');
+  $('#dockActivity').classList.toggle('sel',id==='#s-activity');
+  window.scrollTo(0,0);
+}
+$('#themeBtn').onclick=()=>{const h=document.documentElement;h.dataset.theme=h.dataset.theme==='dark'?'':'dark'};
+$('#updateBtn').onclick=()=>toast('You are on the latest version (draft v1.1.2)');
+$('#dockWatches').onclick=()=>show('#s-home');
+$('#dockActivity').onclick=()=>{show('#s-activity');renderActivity()};
+$('#fab').onclick=()=>show('#s-create');
+$('#saveBtn').onclick=()=>{toast('Watch saved (draft)');show('#s-home')};
+$('#cards').addEventListener('click',e=>{
+  const t=e.target;
+  if(t.dataset.t){const c=cards.find(x=>x.id==t.dataset.t);c.on=!c.on;renderCards();toast(c.on?'Watch resumed':'Watch paused');return}
+  if(t.dataset.run){toast('Checking now…');setTimeout(()=>toast('Checked: ₹67,999 · still above 60,000'),1200);return}
+  if(t.dataset.hist){show('#s-activity');renderActivity();return}
+  const card=t.closest('.card');
+  if(card){
+    const c=cards.find(x=>x.id==card.dataset.id);
+    $('#dTitle').textContent=c.title;$('#dSub').textContent=c.sub;
+    $('#dBody').innerHTML=`
+      <div class="card ${c.on?'pastel '+c.cls:'plain'}" style="cursor:default">
+        <div class="kv"><span>Current value</span><b style="color:${c.on?'#1E6B3C':'var(--ink)'}">₹${c.value}</b></div>
+        <div class="kv"><span>Target</span><b style="color:${c.on?'#201A17':'var(--ink)'}">below ₹60,000</b></div>
+        <div class="kv"><span>Check every</span><b style="color:${c.on?'#201A17':'var(--ink)'}">30 min</b></div>
+        <div class="kv"><span>Last checked</span><b style="color:${c.on?'#201A17':'var(--ink)'}">${c.checked}</b></div>
+        <div class="actions"><button class="btn primary" onclick="toast('Checking now…')">Run now</button><button class="btn" onclick="show('#s-activity');renderActivity()">History</button></div>
+      </div>
+      <div class="toggleTile"><div class="tic"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></div><div class="tt"><b>Notifications</b><span>Notifying when the condition matches</span></div><button class="switch" onclick="this.classList.toggle('off')" aria-label="Notifications"></button></div>
+      <button class="btn" style="align-self:flex-start;color:#9A4A12" onclick="toast('Delete flow (draft)')">Delete watch</button>`;
+    show('#s-detail');
+  }
+});
+renderCards();
+</script>
+</body>
+</html>
