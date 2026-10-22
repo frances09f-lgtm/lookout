@@ -25,8 +25,8 @@ class LookoutPressFeedback extends StatefulWidget {
         !states.contains(WidgetState.disabled);
     return AnimatedScale(
       scale: pressed && !reduced ? .98 : 1,
-      duration: reduced ? Duration.zero : const Duration(milliseconds: 110),
-      curve: Curves.easeOutCubic,
+      duration: reduced ? Duration.zero : const Duration(milliseconds: 160),
+      curve: Curves.easeOutBack,
       child: child,
     );
   }

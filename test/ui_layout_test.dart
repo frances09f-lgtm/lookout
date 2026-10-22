@@ -75,7 +75,7 @@ void main() {
       ),
     );
     await t.pumpAndSettle();
-    await t.tap(find.text('Create Agent'));
+    await t.tap(find.byTooltip('Create Agent'));
     await t.pumpAndSettle();
     await t.tap(find.text('Set a reminder'));
     await t.pumpAndSettle();

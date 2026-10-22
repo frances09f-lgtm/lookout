@@ -377,24 +377,28 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
                         const Divider(height: 1),
                         const SizedBox(height: 10),
                         Wrap(
-                          spacing: 16,
+                          spacing: 8,
+                          runSpacing: 8,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             const Text('Check every'),
-                            LookoutPressFeedback(
-                              child: DropdownButton<Duration>(
-                                value: _interval,
-                                items: [
-                                  for (final d in _intervals)
-                                    DropdownMenuItem(
-                                      value: d,
-                                      child: Text(_intervalLabel(d)),
-                                    ),
-                                ],
-                                onChanged: (d) =>
-                                    setState(() => _interval = d!),
+                            for (final d in _intervals)
+                              LookoutPressFeedback(
+                                child: ActionChip(
+                                  label: Text(_intervalLabel(d)),
+                                  labelStyle: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: d == _interval
+                                        ? Colors.white
+                                        : theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                  backgroundColor: d == _interval
+                                      ? const Color(0xFF201A17)
+                                      : Colors.white,
+                                  onPressed: () =>
+                                      setState(() => _interval = d),
+                                ),
                               ),
-                            ),
                           ],
                         ),
                       ],

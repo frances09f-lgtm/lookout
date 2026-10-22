@@ -13,7 +13,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: HomeScreen(repo: repo, checker: checker)));
     await tester.pumpAndSettle();
     expect(find.text('Lookout'), findsOneWidget);
-    expect(find.text('Create Agent'), findsOneWidget);
+    expect(find.byTooltip('Create Agent'), findsOneWidget);
     expect(find.text('Active'), findsOneWidget);
     expect(find.textContaining('No agents yet'), findsOneWidget);
   });

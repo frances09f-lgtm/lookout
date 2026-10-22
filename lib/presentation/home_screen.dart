@@ -1,4 +1,5 @@
 import 'press_feedback.dart';
+import 'expressive.dart';
 import '../../update/app_update.dart';
 
 import 'package:flutter/material.dart';
@@ -66,169 +67,153 @@ class _HomeScreenState extends State<HomeScreen> {
     _refresh();
   }
 
+  Widget _summaryPill(String label, int count, Color bg, Color fg) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration:
+            BoxDecoration(color: bg, borderRadius: BorderRadius.circular(22)),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('$count',
+                style: TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.w800, color: fg)),
+            const SizedBox(width: 6),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w600, color: fg)),
+          ],
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    final needsSource = _agents
+        .where((a) => a.status == AgentStatus.active && a.needsSourceResolution)
+        .length;
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: colors.primary,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                Icons.visibility_outlined,
-                color: colors.onPrimary,
-                size: 21,
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Text('Lookout'),
-          ],
-        ),
-        actions: [
-          IconButton(
-            onPressed: () => checkUpdateManually(context),
-            tooltip: 'Check for updates',
-            icon: const Icon(Icons.system_update_alt),
-          ),
-          IconButton(
-            onPressed: _openActivity,
-            tooltip: 'Task histories',
-            icon: const Icon(Icons.history_rounded),
-          ),
-          const SizedBox(width: 8),
-        ],
+      bottomNavigationBar: XDock(
+        selected: 0,
+        onSelect: (i) {
+          if (i == 1) _openActivity();
+        },
+        onCreate: _createAgent,
       ),
-      floatingActionButton: LookoutPressFeedback(
-        child: FloatingActionButton.extended(
-          onPressed: _createAgent,
-          icon: const Icon(Icons.add_rounded),
-          label: const Text('Create Agent'),
-        ),
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 720),
-                child: RefreshIndicator(
-                  onRefresh: _refresh,
-                  child: ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 108),
-                    children: [
-                      Text(
-                        'YOUR PERSONAL WATCHLIST',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: colors.primary,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Your watchlist.',
-                        style: theme.textTheme.headlineLarge?.copyWith(
-                          height: 1.12,
-                          letterSpacing: -1.1,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'Your reminders and value watches, together.',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: colors.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 22),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: colors.primaryContainer,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Wrap(
-                          spacing: 20,
-                          runSpacing: 16,
+      body: SafeArea(
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 720),
+                  child: RefreshIndicator(
+                    onRefresh: _refresh,
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
+                      children: [
+                        Row(
                           children: [
-                            _SummaryChip(
-                              label: 'Active',
-                              count: _count(AgentStatus.active),
-                            ),
-                            if (_agents.any(
-                              (a) =>
-                                  a.status == AgentStatus.active &&
-                                  a.needsSourceResolution,
-                            ))
-                              _SummaryChip(
-                                label: 'Needs source',
-                                count: _agents
-                                    .where(
-                                      (a) =>
-                                          a.status == AgentStatus.active &&
-                                          a.needsSourceResolution,
-                                    )
-                                    .length,
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: XColors.ink,
+                                borderRadius: BorderRadius.circular(16),
                               ),
-                            _SummaryChip(
-                              label: 'Paused',
-                              count: _count(AgentStatus.paused),
+                              child: const Icon(Icons.visibility_rounded,
+                                  color: Colors.white, size: 22),
                             ),
-                            _SummaryChip(
-                              label: 'Done',
-                              count: _count(AgentStatus.completed),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Text('Lookout',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                      fontSize: 26,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: -0.8)),
                             ),
-                            _SummaryChip(
-                              label: 'Failed',
-                              count: _count(AgentStatus.failed),
+                            IconButton(
+                              onPressed: () => checkUpdateManually(context),
+                              tooltip: 'Check for updates',
+                              icon: const Icon(
+                                  Icons.system_update_alt_rounded,
+                                  color: XColors.inkSoft),
                             ),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: 28),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Your watches',
-                              style: theme.textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: -.5,
+                        const SizedBox(height: 24),
+                        Text(
+                          'Your watchlist.',
+                          style: theme.textTheme.headlineLarge?.copyWith(
+                            fontSize: 34,
+                            height: 1.05,
+                            letterSpacing: -1.2,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Your reminders and value watches, together.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: XColors.inkSoft,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _summaryPill('Active', _count(AgentStatus.active),
+                                XColors.mint, XColors.mintDeep),
+                            if (needsSource > 0)
+                              _summaryPill(
+                                  'Needs source',
+                                  needsSource,
+                                  XColors.lemon,
+                                  XColors.lemonDeep),
+                            _summaryPill('Paused', _count(AgentStatus.paused),
+                                XColors.peach, XColors.peachDeep),
+                            _summaryPill(
+                                'Done',
+                                _count(AgentStatus.completed),
+                                XColors.lavender,
+                                XColors.lavenderDeep),
+                            if (_count(AgentStatus.failed) > 0)
+                              _summaryPill(
+                                  'Failed',
+                                  _count(AgentStatus.failed),
+                                  theme.colorScheme.errorContainer,
+                                  theme.colorScheme.onErrorContainer),
+                          ],
+                        ),
+                        const SizedBox(height: 26),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: xSectionLabel(
+                                  'Watching now', XColors.mintDeep),
+                            ),
+                            Text(
+                              '${_agents.length} total',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: XColors.inkSoft,
                               ),
                             ),
-                          ),
-                          Text(
-                            '${_agents.length} total',
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              color: colors.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      if (_agents.isEmpty)
-                        Card(
-                          margin: EdgeInsets.zero,
-                          child: Padding(
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        if (_agents.isEmpty)
+                          Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 32,
+                                horizontal: 24, vertical: 32),
+                            decoration: BoxDecoration(
+                              color: XColors.lavender,
+                              borderRadius: BorderRadius.circular(32),
                             ),
                             child: Column(
                               children: [
-                                Icon(
-                                  Icons.visibility_outlined,
-                                  size: 38,
-                                  color: colors.primary,
-                                ),
+                                const Icon(Icons.visibility_outlined,
+                                    size: 38, color: XColors.lavenderDeep),
                                 const SizedBox(height: 16),
                                 Text(
                                   'No agents yet.',
@@ -238,92 +223,60 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  'Start with a price to watch or a reminder. Tap Create Agent to set it up.',
+                                  'Start with a price to watch or a reminder. Tap + below to set it up.',
                                   textAlign: TextAlign.center,
                                   style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: colors.onSurfaceVariant,
+                                    color: XColors.inkSoft,
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-                        )
-                      else
-                        ..._agents.map(
-                          (a) => _AgentCard(
-                            agent: a,
-                            onTap: () async {
-                              await Navigator.of(context).push(
+                          )
+                        else
+                          ..._agents.map(
+                            (a) => _AgentCard(
+                              agent: a,
+                              onTap: () async {
+                                await Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => AgentDetailsScreen(
+                                      repo: widget.repo,
+                                      checker: widget.checker,
+                                      agentId: a.id!,
+                                    ),
+                                  ),
+                                );
+                                _refresh();
+                              },
+                              onHistory: () => Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (_) => AgentDetailsScreen(
+                                  builder: (_) => ActivityScreen(
                                     repo: widget.repo,
-                                    checker: widget.checker,
                                     agentId: a.id!,
                                   ),
                                 ),
-                              );
-                              _refresh();
-                            },
-                            onHistory: () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => ActivityScreen(
-                                  repo: widget.repo,
-                                  agentId: a.id!,
-                                ),
                               ),
+                              onRunNow: () async {
+                                await widget.checker.checkAgent(a);
+                                _refresh();
+                              },
+                              onPauseResume: () async {
+                                await widget.repo.updateAgent(
+                                  a.copyWith(
+                                    status: a.status == AgentStatus.paused
+                                        ? AgentStatus.active
+                                        : AgentStatus.paused,
+                                  ),
+                                );
+                                _refresh();
+                              },
                             ),
-                            onRunNow: () async {
-                              await widget.checker.checkAgent(a);
-                              _refresh();
-                            },
-                            onPauseResume: () async {
-                              await widget.repo.updateAgent(
-                                a.copyWith(
-                                  status: a.status == AgentStatus.paused
-                                      ? AgentStatus.active
-                                      : AgentStatus.paused,
-                                ),
-                              );
-                              _refresh();
-                            },
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-    );
-  }
-}
-
-class _SummaryChip extends StatelessWidget {
-  final String label;
-  final int count;
-  const _SummaryChip({required this.label, required this.count});
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return SizedBox(
-      width: 56,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '$count',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: theme.colorScheme.onPrimaryContainer,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            label,
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.onPrimaryContainer,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -346,113 +299,131 @@ class _AgentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final statusColor = switch (agent.status) {
-      AgentStatus.active => scheme.primary,
-      AgentStatus.paused => scheme.tertiary,
-      AgentStatus.completed => scheme.primary,
-      AgentStatus.failed => scheme.error,
-    };
+    final running = agent.status == AgentStatus.active;
+    final toggleable = running || agent.status == AgentStatus.paused;
+    final (bg, accent) = toggleable
+        ? (running ? XColors.pastelFor(agent.id ?? agent.title.hashCode)
+            : (XColors.white, XColors.peachDeep))
+        : (XColors.white, XColors.inkSoft);
     final number = agent.currentValue;
-    return Card(
+
+    return Container(
       margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(32),
+      ),
       child: LookoutPressFeedback(
         child: InkWell(
+          borderRadius: BorderRadius.circular(32),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 10),
+            padding: const EdgeInsets.all(18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Icon(
-                      agent.type == AgentType.reminder
-                          ? Icons.alarm_rounded
-                          : Icons.show_chart_rounded,
-                      size: 19,
-                      color: scheme.primary,
-                    ),
-                    Text(
-                      agent.typeLabel,
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 9,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: .10),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        agent.statusLabel,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: statusColor,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: accent,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(
+                        agent.type == AgentType.reminder
+                            ? Icons.alarm_rounded
+                            : Icons.show_chart_rounded,
+                        size: 20,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         agent.title,
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w700,
-                          height: 1.3,
+                          height: 1.25,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Icon(
-                      Icons.arrow_forward_rounded,
-                      size: 18,
-                      color: scheme.onSurfaceVariant,
-                    ),
+                    if (toggleable)
+                      xSwitch(
+                        value: running,
+                        accent: accent,
+                        onChanged: (_) => onPauseResume(),
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEDE8E0),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Text(
+                          agent.statusLabel,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: XColors.inkSoft,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 10),
                 Text(
-                  agent.conditionLabel,
+                  '${agent.typeLabel} · ${agent.conditionLabel}',
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: scheme.onSurfaceVariant,
+                    color: XColors.inkSoft,
                   ),
                 ),
                 if (agent.type == AgentType.valueWatch && number != null) ...[
-                  const SizedBox(height: 10),
-                  Text(
-                    agent.isTextWatch
-                        ? agent.readingLabel(number)
-                        : 'Stored value: ${number == number.roundToDouble() ? number.toInt() : number}',
-                    style: theme.textTheme.labelLarge,
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        number == number.roundToDouble()
+                            ? '${number.toInt()}'
+                            : '$number',
+                        style: TextStyle(
+                          fontSize: 30,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.8,
+                          color: running ? accent : XColors.inkSoft,
+                        ),
+                      ),
+                      if (agent.lastCheckedAt != null) ...[
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 5),
+                            child: Text(
+                              'last checked ${_fmt(agent.lastCheckedAt!)}',
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: XColors.inkSoft,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                ],
-                if (agent.lastCheckedAt != null) ...[
+                ] else if (agent.lastCheckedAt != null) ...[
                   const SizedBox(height: 8),
                   Text(
                     'Last checked ${_fmt(agent.lastCheckedAt!)}',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
+                      color: XColors.inkSoft,
                     ),
                   ),
                 ],
-                const SizedBox(height: 12),
-                const Divider(height: 1),
-                const SizedBox(height: 4),
+                const SizedBox(height: 10),
                 Wrap(
-                  alignment: WrapAlignment.spaceBetween,
-                  spacing: 8,
                   children: [
                     TextButton(
                       onPressed: onRunNow,
@@ -461,12 +432,6 @@ class _AgentCard extends StatelessWidget {
                     TextButton(
                       onPressed: onHistory,
                       child: const Text('History'),
-                    ),
-                    TextButton(
-                      onPressed: onPauseResume,
-                      child: Text(
-                        agent.status == AgentStatus.paused ? 'Resume' : 'Pause',
-                      ),
                     ),
                   ],
                 ),

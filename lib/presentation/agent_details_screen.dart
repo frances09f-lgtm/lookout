@@ -9,6 +9,7 @@ import '../services/checker.dart';
 import '../services/browser_price_check.dart';
 import '../services/page_fetch.dart';
 import 'activity_screen.dart';
+import 'expressive.dart';
 import 'source_review_screen.dart';
 import '../services/source_discovery.dart';
 
@@ -309,32 +310,93 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    Chip(
-                      label: Text(a.typeLabel),
-                      avatar: const Icon(Icons.tag, size: 16),
-                    ),
-                    Chip(label: Text(a.statusLabel)),
-                    Chip(
-                      avatar: Icon(
-                        a.notificationEnabled
-                            ? Icons.notifications_active
-                            : Icons.notifications_off,
-                        size: 16,
+                Builder(
+                  builder: (context) {
+                    final running = a.status == AgentStatus.active;
+                    final (bg, accent) = running
+                        ? XColors.pastelFor(a.id ?? a.title.hashCode)
+                        : (XColors.white, XColors.inkSoft);
+                    return Container(
+                      padding: const EdgeInsets.all(22),
+                      decoration: BoxDecoration(
+                        color: bg,
+                        borderRadius: BorderRadius.circular(36),
                       ),
-                      label: Text(
-                        a.notificationEnabled ? 'Notifying' : 'Silent',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: running
+                                        ? accent
+                                        : const Color(0xFFEDE8E0),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: Text(
+                                    a.statusLabel,
+                                    overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: running
+                                        ? Colors.white
+                                        : XColors.inkSoft,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.6,
+                                  ),
+                                ),
+                              ),
+                              ),
+                              const Spacer(),
+                              Icon(
+                                a.type == AgentType.reminder
+                                    ? Icons.alarm_rounded
+                                    : Icons.show_chart_rounded,
+                                color: accent,
+                              ),
+                            ],
+                          ),
+                          if (a.type == AgentType.valueWatch &&
+                              a.currentValue != null) ...[
+                            const SizedBox(height: 16),
+                            Text(
+                              a.currentValue! == a.currentValue!.roundToDouble()
+                                  ? '${a.currentValue!.toInt()}'
+                                  : '${a.currentValue}',
+                              style: TextStyle(
+                                fontSize: 52,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -2,
+                                height: 1,
+                                color: running ? accent : XColors.inkSoft,
+                              ),
+                            ),
+                          ] else
+                            const SizedBox(height: 12),
+                          const SizedBox(height: 6),
+                          Text(
+                            a.conditionLabel,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            a.typeLabel,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: XColors.inkSoft),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  a.conditionLabel,
-                  style: Theme.of(context).textTheme.titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w700),
+                    );
+                  },
                 ),
                 if (a.needsSourceResolution) ...[
                   const SizedBox(height: 12),
@@ -393,6 +455,25 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 12),
+                XToggleTile(
+                  icon: a.notificationEnabled
+                      ? Icons.notifications_active_rounded
+                      : Icons.notifications_off_rounded,
+                  title: 'Notifications',
+                  subtitle: a.notificationEnabled
+                      ? 'Notifying when the condition matches'
+                      : 'Silent - checks still run',
+                  bg: XColors.lemon,
+                  accent: XColors.lemonDeep,
+                  value: a.notificationEnabled,
+                  onChanged: (v) async {
+                    await widget.repo.updateAgent(
+                      a.copyWith(notificationEnabled: v),
+                    );
+                    _refresh();
+                  },
                 ),
                 const SizedBox(height: 12),
                 if (!a.isUnsupportedTicketWatch &&
