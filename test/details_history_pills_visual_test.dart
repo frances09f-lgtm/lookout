@@ -11,6 +11,7 @@ import 'package:lookout/presentation/agent_details_screen.dart';
 import 'package:lookout/presentation/theme.dart';
 import 'package:lookout/services/checker.dart';
 import 'package:lookout/services/notifications.dart';
+import 'test_fonts.dart';
 
 Agent _task(int id) => Agent(
   id: id,
@@ -53,13 +54,7 @@ void main() {
         (t) async {
       await t.runAsync(() async {
         await Directory('/tmp/lookout-shots').create(recursive: true);
-        final f = File('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf');
-        if (await f.exists()) {
-          final l = FontLoader('Roboto')
-            ..addFont(
-                Future.value(ByteData.sublistView(await f.readAsBytes())));
-          await l.load();
-        }
+        await loadTestFonts();
         const sdk = String.fromEnvironment('FLUTTER_SDK');
         final mi = File(
             '$sdk/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf');
