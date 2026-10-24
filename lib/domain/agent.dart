@@ -43,6 +43,10 @@ class Agent {
   final AgentStatus status;
   final DateTime createdAt;
   final DateTime? lastCheckedAt;
+
+  /// When the agent reached a terminal completed state. Null for records
+  /// completed before this field existed - those stay on the watchlist.
+  final DateTime? completedAt;
   final DateTime? nextCheckAt;
   final Duration checkInterval;
   final WatchCondition condition;
@@ -71,6 +75,7 @@ class Agent {
     required this.status,
     required this.createdAt,
     this.lastCheckedAt,
+    this.completedAt,
     this.nextCheckAt,
     required this.checkInterval,
     required this.condition,
@@ -91,6 +96,7 @@ class Agent {
     String? title,
     AgentStatus? status,
     DateTime? lastCheckedAt,
+    DateTime? completedAt,
     DateTime? nextCheckAt,
     Duration? checkInterval,
     double? target,
@@ -115,6 +121,7 @@ class Agent {
       status: status ?? this.status,
       createdAt: createdAt,
       lastCheckedAt: lastCheckedAt ?? this.lastCheckedAt,
+      completedAt: completedAt ?? this.completedAt,
       nextCheckAt: nextCheckAt ?? this.nextCheckAt,
       checkInterval: checkInterval ?? this.checkInterval,
       condition: condition,
@@ -225,6 +232,7 @@ class Agent {
     'status': status.name,
     'createdAt': createdAt.millisecondsSinceEpoch,
     'lastCheckedAt': lastCheckedAt?.millisecondsSinceEpoch,
+    'completedAt': completedAt?.millisecondsSinceEpoch,
     'nextCheckAt': nextCheckAt?.millisecondsSinceEpoch,
     'checkIntervalMinutes': checkInterval.inMinutes,
     'condition': condition.name,
@@ -250,6 +258,9 @@ class Agent {
     lastCheckedAt: m['lastCheckedAt'] == null
         ? null
         : DateTime.fromMillisecondsSinceEpoch(m['lastCheckedAt'] as int),
+    completedAt: m['completedAt'] == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(m['completedAt'] as int),
     nextCheckAt: m['nextCheckAt'] == null
         ? null
         : DateTime.fromMillisecondsSinceEpoch(m['nextCheckAt'] as int),
