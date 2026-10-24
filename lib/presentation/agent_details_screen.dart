@@ -33,8 +33,22 @@ class AgentDetailsScreen extends StatefulWidget {
 }
 
 class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
+  static const _intervalOptions = [
+    Duration(minutes: 5),
+    Duration(minutes: 10),
+    Duration(minutes: 15),
+    Duration(minutes: 30),
+    Duration(hours: 1),
+    Duration(hours: 3),
+    Duration(hours: 6),
+    Duration(hours: 12),
+    Duration(hours: 24),
+  ];
+
   Agent? _agent;
   List<ActivityEntry> _activity = [];
+  Duration? _selectedInterval;
+  bool _savingInterval = false;
 
   @override
   void initState() {
@@ -66,8 +80,35 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
       setState(() {
         _agent = a;
         _activity = log.where((entry) => entry.agentId == id).toList();
+        _selectedInterval ??= a.checkInterval;
       });
     }
+  }
+
+  static String _intervalChipLabel(Duration d) => d.inMinutes < 60
+      ? '${d.inMinutes} min'
+      : d.inHours < 24
+      ? '${d.inHours} h'
+      : '${d.inDays} day';
+
+  /// Saves the chosen interval and reschedules the next check from now.
+  /// Existing intervals are never touched unless the user saves here.
+  Future<void> _saveInterval() async {
+    final a = _agent;
+    final interval = _selectedInterval;
+    if (a == null || interval == null || _savingInterval) return;
+    setState(() => _savingInterval = true);
+    try {
+      await widget.repo.updateAgent(
+        a.copyWith(
+          checkInterval: interval,
+          nextCheckAt: DateTime.now().add(interval),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _savingInterval = false);
+    }
+    _refresh();
   }
 
   Future<void> _updateValue() async {
@@ -562,10 +603,57 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                 const SizedBox(height: 10),
                 _row('Goal', a.originalPrompt),
                 _row('Condition', a.conditionLabel),
-                _row(
-                  'Check interval',
-                  'every ${a.checkInterval.inMinutes} min',
-                ),
+                if (a.status == AgentStatus.active ||
+                    a.status == AgentStatus.paused) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Check every',
+                    style: Theme.of(context).textTheme.bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final d in _intervalOptions)
+                        ChoiceChip(
+                          label: Text(_intervalChipLabel(d)),
+                          selected: d == _selectedInterval,
+                          onSelected: (_) =>
+                              setState(() => _selectedInterval = d),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '5 and 10 minutes only while the app is open. Closed-app '
+                    'background checks need at least 15 minutes on Android. '
+                    'Changes apply to future checks.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed:
+                          _savingInterval ||
+                              _selectedInterval == null ||
+                              _selectedInterval == a.checkInterval
+                          ? null
+                          : _saveInterval,
+                      child: Text(
+                        _savingInterval ? 'Saving…' : 'Save interval',
+                      ),
+                    ),
+                  ),
+                ] else
+                  _row(
+                    'Check interval',
+                    'every ${a.checkInterval.inMinutes} min',
+                  ),
                 if (a.type == AgentType.valueWatch) ...[
                   _row('Current value', a.readingLabel(a.currentValue)),
                   _row('Previous value', a.readingLabel(a.previousValue)),
