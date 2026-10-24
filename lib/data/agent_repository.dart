@@ -57,6 +57,7 @@ class InMemoryAgentRepository implements AgentRepository {
     status: a.status,
     createdAt: a.createdAt,
     lastCheckedAt: a.lastCheckedAt,
+    completedAt: a.completedAt,
     nextCheckAt: a.nextCheckAt,
     checkInterval: a.checkInterval,
     condition: a.condition,
