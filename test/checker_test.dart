@@ -70,6 +70,50 @@ void main() {
     expect((await repo.agentById(id))!.status, AgentStatus.completed);
   });
 
+  test('value watch fires when above target (rises above)', () async {
+    final repo = InMemoryAgentRepository();
+    final notifier = RecordingNotifier();
+    final id = await repo.insertAgent(Agent(
+      id: 11,
+      title: 'BTC',
+      originalPrompt: 'Tell me when BTC rises above \$85000',
+      type: AgentType.valueWatch,
+      status: AgentStatus.active,
+      createdAt: DateTime(2026, 1, 1),
+      checkInterval: const Duration(minutes: 30),
+      condition: WatchCondition.greaterThan,
+      target: 85000,
+      currentValue: 85600,
+    ));
+    final checker = AgentChecker(repo: repo, notifier: notifier, clock: () => DateTime(2026, 1, 2));
+    await checker.checkDueAgents();
+    expect(notifier.shown, hasLength(1));
+    final done = (await repo.agentById(id))!;
+    expect(done.status, AgentStatus.completed);
+    expect(done.completedAt, DateTime(2026, 1, 2));
+  });
+
+  test('rises-above watch at or below target does not fire', () async {
+    final repo = InMemoryAgentRepository();
+    final notifier = RecordingNotifier();
+    final id = await repo.insertAgent(Agent(
+      id: 12,
+      title: 'BTC',
+      originalPrompt: 'Tell me when BTC rises above \$85000',
+      type: AgentType.valueWatch,
+      status: AgentStatus.active,
+      createdAt: DateTime(2026, 1, 1),
+      checkInterval: const Duration(minutes: 30),
+      condition: WatchCondition.greaterThan,
+      target: 85000,
+      currentValue: 85000,
+    ));
+    final checker = AgentChecker(repo: repo, notifier: notifier, clock: () => DateTime(2026, 1, 2));
+    await checker.checkDueAgents();
+    expect(notifier.shown, isEmpty);
+    expect((await repo.agentById(id))!.status, AgentStatus.active);
+  });
+
   test('value watch without a value stays active and waits', () async {
     final repo = InMemoryAgentRepository();
     final notifier = RecordingNotifier();
