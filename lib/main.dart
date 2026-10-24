@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -46,17 +48,50 @@ class LookoutApp extends StatefulWidget {
   State<LookoutApp> createState() => _LookoutAppState();
 }
 
-class _LookoutAppState extends State<LookoutApp> {
+class _LookoutAppState extends State<LookoutApp>
+    with WidgetsBindingObserver {
   static const _prefKey = 'lookout_theme_dark';
   bool? _dark; // null = follow system until the user taps the toggle
+  Timer? _foregroundChecks;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _startForegroundChecks();
     SharedPreferences.getInstance().then((prefs) {
       final saved = prefs.getBool(_prefKey);
       if (saved != null && mounted) setState(() => _dark = saved);
     });
+  }
+
+  /// 5/10-minute intervals run only while the app is open: this ticker runs
+  /// due checks once a minute in the foreground. Closed-app checks stay on
+  /// WorkManager, which floors at the 15-minute platform minimum.
+  void _startForegroundChecks() {
+    _foregroundChecks?.cancel();
+    _foregroundChecks = Timer.periodic(const Duration(minutes: 1), (_) {
+      widget.checker.checkDueAgents();
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startForegroundChecks();
+      widget.checker.checkDueAgents();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      _foregroundChecks?.cancel();
+      _foregroundChecks = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _foregroundChecks?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   void _toggleTheme(bool dark) {
