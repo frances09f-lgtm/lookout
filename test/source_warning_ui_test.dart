@@ -10,18 +10,14 @@ import 'package:lookout/domain/agent.dart';
 import 'package:lookout/services/checker.dart';
 import 'package:lookout/services/notifications.dart';
 import 'package:lookout/presentation/agent_details_screen.dart';
+import 'test_fonts.dart';
 
 void main() {
   testWidgets('exact show repair hint is visible for generic source', (
     t,
   ) async {
     await t.runAsync(() async {
-      final f = File('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf');
-      if (await f.exists()) {
-        final l = FontLoader('Roboto')
-          ..addFont(Future.value(ByteData.sublistView(await f.readAsBytes())));
-        await l.load();
-      }
+      await loadTestFonts();
     });
     final repo = InMemoryAgentRepository();
     final id = await repo.insertAgent(
