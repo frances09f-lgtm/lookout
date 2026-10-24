@@ -22,6 +22,26 @@ Agent sample() => Agent(
   sourceUrl: 'https://example.com/item',
 );
 
+Future<void> switchToDescribeMode(WidgetTester t) async {
+  await t.scrollUntilVisible(
+    find.text('Set a reminder or watch text on a page instead'),
+    300,
+    scrollable: find.byType(Scrollable).first,
+    maxScrolls: 80,
+  );
+  await t.ensureVisible(
+    find.text('Set a reminder or watch text on a page instead'),
+  );
+  await t.pumpAndSettle();
+  await t.tap(
+    find.text('Set a reminder or watch text on a page instead'),
+    warnIfMissed: false,
+  );
+  await t.pumpAndSettle();
+  await t.drag(find.byType(Scrollable).first, const Offset(0, 4000));
+  await t.pumpAndSettle();
+}
+
 void main() {
   for (final size in [
     const Size(320, 640),
@@ -77,6 +97,7 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.byTooltip('Create Agent'));
     await t.pumpAndSettle();
+    await switchToDescribeMode(t);
     await t.tap(find.text('Set a reminder'));
     await t.pumpAndSettle();
     await t.scrollUntilVisible(
@@ -90,7 +111,7 @@ void main() {
     expect(agents.length, 1);
     expect(agents.single.type, AgentType.reminder);
     expect(agents.single.status, AgentStatus.active);
-    expect(agents.single.checkInterval, const Duration(minutes: 30));
+    expect(agents.single.checkInterval, const Duration(hours: 1));
   });
   testWidgets(
     'details retains Run now and pause/resume; UI opens without writes',
