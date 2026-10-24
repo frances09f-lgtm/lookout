@@ -18,6 +18,29 @@ import 'package:lookout/services/source_discovery.dart';
 
 import 'next_update_test.dart' as fixture;
 
+/// The create screen opens on the price-boxes view; these flows exercise the
+/// describe flow, one tap away. Scroll offset survives the mode switch, so
+/// return to the top before driving the describe form.
+Future<void> switchToDescribeMode(WidgetTester t) async {
+  await t.scrollUntilVisible(
+    find.text('Set a reminder or watch text on a page instead'),
+    300,
+    scrollable: find.byType(Scrollable).first,
+    maxScrolls: 80,
+  );
+  await t.ensureVisible(
+    find.text('Set a reminder or watch text on a page instead'),
+  );
+  await t.pumpAndSettle();
+  await t.tap(
+    find.text('Set a reminder or watch text on a page instead'),
+    warnIfMissed: false,
+  );
+  await t.pumpAndSettle();
+  await t.drag(find.byType(Scrollable).first, const Offset(0, 4000));
+  await t.pumpAndSettle();
+}
+
 const out = String.fromEnvironment('CAPTURE_DIR');
 Future<void> capture(WidgetTester t, GlobalKey key, String name) async {
   await t.pumpAndSettle();
@@ -110,6 +133,7 @@ void main() {
             home: CreateAgentScreen(repo: repo, discovery: service),
           ),
         );
+        await switchToDescribeMode(t);
         await capture(t, key, '01-create-$mode');
         final left = t.getRect(find.text('Watch a value'));
         final right = t.getRect(find.text('Set a reminder'));
