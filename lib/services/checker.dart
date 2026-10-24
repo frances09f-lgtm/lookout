@@ -174,7 +174,10 @@ class AgentChecker {
       UsageReporter.report(
         agent.type == AgentType.reminder ? 'reminder_fired' : 'watch_triggered',
       );
-      updated = updated.copyWith(status: AgentStatus.completed);
+      updated = updated.copyWith(
+        status: AgentStatus.completed,
+        completedAt: at,
+      );
       await repo.logActivity(id, 'Agent completed', at);
     } else if (agent.needsSourceResolution) {
       await repo.logActivity(
