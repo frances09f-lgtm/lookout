@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lookout - Task history (pill draft)</title>
+<style>
+:root{
+  --bg:#FAF7F2; --panel:#FFFFFF; --ink:#201A17; --ink-soft:#6F675F;
+  --outline:#E3DDD3; --track:#EDE8E0;
+  --mint:#D8F0DC; --mint-deep:#1E6B3C;
+  --lavender:#E9E2FB; --lavender-deep:#5A3FA8;
+  --peach:#FFE4CE; --peach-deep:#9A4A12;
+  --sky:#D9EAFB; --sky-deep:#1D5A96;
+}
+html[data-theme="dark"]{
+  --bg:#171411; --panel:#23201C; --ink:#F2EDE6; --ink-soft:#B4ABA0;
+  --outline:#3A342E; --track:#2A2521;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Roboto','Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+.screen{max-width:430px;margin:0 auto;min-height:100dvh;padding-bottom:2rem}
+header{display:flex;align-items:center;gap:.9rem;padding:1.1rem 1.2rem .8rem}
+.back{background:none;border:none;color:var(--ink);cursor:pointer;padding:.4rem;border-radius:10px}
+.back svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+header h1{font-size:1.15rem;font-weight:800;flex:1;text-align:center;letter-spacing:-.01em}
+.themebtn{background:none;border:none;color:var(--ink-soft);cursor:pointer;padding:.4rem;font-size:1.05rem;border-radius:10px}
+.task{padding:.6rem 1.3rem 0}
+.task h2{font-size:1.35rem;font-weight:800;letter-spacing:-.02em;line-height:1.25}
+.task p{color:var(--ink-soft);font-size:.86rem;margin-top:.45rem}
+.cycles{padding:1.1rem 1rem 0;display:flex;flex-direction:column;gap:.8rem}
+.cycle{background:var(--panel);border:1px solid var(--outline);border-radius:22px;padding:.95rem 1.05rem .8rem}
+.cycle-head{display:flex;align-items:center;gap:.7rem}
+.chip{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;flex:none}
+.chip svg{width:18px;height:18px;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;fill:none}
+.chip.sky{background:var(--sky)} .chip.sky svg{stroke:var(--sky-deep)}
+.chip.peach{background:var(--peach)} .chip.peach svg{stroke:var(--peach-deep)}
+.chip.mint{background:var(--mint)} .chip.mint svg{stroke:var(--mint-deep)}
+.chip.lav{background:var(--lavender)} .chip.lav svg{stroke:var(--lavender-deep)}
+.cycle-title{font-weight:800;font-size:.98rem;letter-spacing:-.01em}
+.cycle-time{color:var(--ink-soft);font-size:.78rem;margin-top:.1rem}
+.badge{margin-left:auto;font-size:.7rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:.28rem .6rem;border-radius:999px;flex:none}
+.badge.sky{background:var(--sky);color:var(--sky-deep)}
+.badge.peach{background:var(--peach);color:var(--peach-deep)}
+.badge.mint{background:var(--mint);color:var(--mint-deep)}
+.badge.lav{background:var(--lavender);color:var(--lavender-deep)}
+.badge.dim{background:var(--track);color:var(--ink-soft)}
+.steps{list-style:none;margin-top:.65rem;border-top:1px dashed var(--outline);padding-top:.6rem;display:flex;flex-direction:column;gap:.34rem}
+.steps li{display:flex;gap:.55rem;align-items:baseline;font-size:.86rem;color:var(--ink-soft);line-height:1.35}
+.steps li::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--ink-soft);flex:none;transform:translateY(-2px)}
+.steps li.value{color:var(--ink);font-weight:600}
+.steps li.next{color:var(--sky-deep);font-weight:700}
+html[data-theme="dark"] .steps li.next{color:#8FC3EE}
+.steps li.retry{color:var(--peach-deep);font-weight:700}
+html[data-theme="dark"] .steps li.retry{color:#F0B98A}
+.example-label{padding:1.4rem 1.3rem .2rem;color:var(--ink-soft);font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;font-weight:800}
+.pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--lavender-deep);margin-right:.35rem;animation:p 1.2s ease-in-out infinite}
+@keyframes p{0%,100%{opacity:.35}50%{opacity:1}}
+</style>
+</head>
+<body>
+<div class="screen">
+  <header>
+    <button class="back" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M19 12H5m7-7-7 7 7 7"/></svg></button>
+    <h1>Task history</h1>
+    <button class="themebtn" onclick="const h=document.documentElement;h.dataset.theme=h.dataset.theme==='dark'?'light':'dark'" title="Toggle theme">&#9790;</button>
+  </header>
+
+  <div class="task">
+    <h2>Tell me when wireless earbuds become cheaper than &#8377;2,000 &middot; #3</h2>
+    <p>Only this task's recorded activity. One card per check.</p>
+  </div>
+
+  <div class="cycles">
+
+    <div class="cycle">
+      <div class="cycle-head">
+        <span class="chip lav"><svg viewBox="0 0 24 24"><path d="M13 2 3 14h7l-1 8 11-14h-7l1-6z"/></svg></span>
+        <div>
+          <div class="cycle-title">Started check</div>
+          <div class="cycle-time">22/10 09:12</div>
+        </div>
+        <span class="badge dim">No result</span>
+      </div>
+      <ul class="steps">
+        <li>No result recorded for this cycle</li>
+      </ul>
+    </div>
+
+    <div class="cycle">
+      <div class="cycle-head">
+        <span class="chip peach"><svg viewBox="0 0 24 24"><path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></span>
+        <div>
+          <div class="cycle-title">Unable to check</div>
+          <div class="cycle-time">21/10 18:40</div>
+        </div>
+        <span class="badge peach">Failed</span>
+      </div>
+      <ul class="steps">
+        <li>Started check</li>
+        <li class="value">Fetching shop.example timed out - no fresh value to check</li>
+        <li class="retry">Read retry scheduled for 21/10 19:10</li>
+      </ul>
+    </div>
+
+    <div class="cycle">
+      <div class="cycle-head">
+        <span class="chip sky"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span>
+        <div>
+          <div class="cycle-title">Condition not met</div>
+          <div class="cycle-time">21/10 15:02</div>
+        </div>
+        <span class="badge sky">Not yet</span>
+      </div>
+      <ul class="steps">
+        <li>Started check</li>
+        <li class="value">Fetched data: Product offer 2199.0 on shop.example - target 2000</li>
+        <li class="next">Next check scheduled for 21/10 15:32</li>
+      </ul>
+    </div>
+
+    <div class="example-label">Example - when the price hits target</div>
+
+    <div class="cycle">
+      <div class="cycle-head">
+        <span class="chip mint"><svg viewBox="0 0 24 24"><path d="M22 11.1V12a10 10 0 1 1-5.9-9.1"/><path d="M22 4 12 14l-3-3"/></svg></span>
+        <div>
+          <div class="cycle-title">Condition met</div>
+          <div class="cycle-time">21/10 15:32 (example)</div>
+        </div>
+        <span class="badge mint">Done</span>
+      </div>
+      <ul class="steps">
+        <li>Started check</li>
+        <li class="value">Fetched data: Product offer 1990.0 on shop.example - target 2000</li>
+        <li>Notification sent</li>
+        <li>Agent completed</li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>
