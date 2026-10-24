@@ -10,7 +10,7 @@ import 'agent_repository.dart';
 
 class SqfliteAgentRepository implements AgentRepository {
   static const _dbName = 'lookout.db';
-  static const _dbVersion = 4;
+  static const _dbVersion = 5;
 
   final Database _db;
 
@@ -31,6 +31,7 @@ class SqfliteAgentRepository implements AgentRepository {
             status TEXT NOT NULL,
             createdAt INTEGER NOT NULL,
             lastCheckedAt INTEGER,
+            completedAt INTEGER,
             nextCheckAt INTEGER,
             checkIntervalMinutes INTEGER NOT NULL,
             condition TEXT NOT NULL,
@@ -63,6 +64,9 @@ class SqfliteAgentRepository implements AgentRepository {
         );
       },
       onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 5) {
+          await db.execute('ALTER TABLE agents ADD COLUMN completedAt INTEGER');
+        }
         if (oldVersion < 4) {
           await db.execute('ALTER TABLE agents ADD COLUMN sourceIdentity TEXT');
         }
