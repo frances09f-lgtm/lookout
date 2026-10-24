@@ -19,6 +19,29 @@ import 'package:sqflite_common_ffi/sqflite_common_ffi.dart';
 
 import 'next_update_test.dart' as helpers;
 
+/// The create screen opens on the price-boxes view; these flows exercise the
+/// describe flow, one tap away. Scroll offset survives the mode switch, so
+/// return to the top before driving the describe form.
+Future<void> switchToDescribeMode(WidgetTester t) async {
+  await t.scrollUntilVisible(
+    find.text('Set a reminder or watch text on a page instead'),
+    300,
+    scrollable: find.byType(Scrollable).first,
+    maxScrolls: 80,
+  );
+  await t.ensureVisible(
+    find.text('Set a reminder or watch text on a page instead'),
+  );
+  await t.pumpAndSettle();
+  await t.tap(
+    find.text('Set a reminder or watch text on a page instead'),
+    warnIfMissed: false,
+  );
+  await t.pumpAndSettle();
+  await t.drag(find.byType(Scrollable).first, const Offset(0, 4000));
+  await t.pumpAndSettle();
+}
+
 Future<void> visibleTap(WidgetTester t, Finder finder) async {
   await t.ensureVisible(finder);
   await t.pumpAndSettle();
@@ -108,6 +131,7 @@ void main() {
     );
     final map = helpers.watch().toMap()
       ..remove('sourceIdentity')
+      ..remove('completedAt')
       ..['id'] = 7;
     await db.insert('agents', map);
     await db.insert('activity', {
@@ -118,6 +142,8 @@ void main() {
     await db.close();
     var repo = await SqfliteAgentRepository.open(path: path);
     expect((await repo.agentById(7))!.needsSourceResolution, true);
+    // Migrated records carry no completion timestamp; they stay visible.
+    expect((await repo.agentById(7))!.completedAt, isNull);
     expect(await repo.dueAgents(DateTime(2027)), isEmpty);
     await repo.updateAgent(
       (await repo.agentById(7))!.copyWith(
@@ -173,6 +199,7 @@ void main() {
           home: CreateAgentScreen(repo: repo, discovery: fakeService()),
         ),
       );
+      await switchToDescribeMode(t);
       await t.enterText(
         find.byType(TextField).first,
         'check iphone price below 60000',
