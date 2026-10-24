@@ -9,6 +9,7 @@ import '../services/checker.dart';
 import '../services/browser_price_check.dart';
 import '../services/page_fetch.dart';
 import 'activity_screen.dart';
+import 'history_cycles.dart';
 import 'expressive.dart';
 import 'source_review_screen.dart';
 import '../services/source_discovery.dart';
@@ -707,17 +708,8 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                 if (_activity.isEmpty)
                   const Text('No activity yet. Run a check to see the log.')
                 else
-                  ..._activity.map(
-                    (e) => ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.circle, size: 8),
-                      title: Text(
-                        e.message,
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                      subtitle: Text(_fmtTime(e.timestamp)),
-                    ),
+                  ...groupHistoryCycles(_activity).map(
+                    (cycle) => CycleCard(cycle: cycle),
                   ),
               ],
             ),
