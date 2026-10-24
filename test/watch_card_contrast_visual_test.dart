@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lookout/domain/agent.dart';
 import 'package:lookout/presentation/home_screen.dart';
 import 'package:lookout/presentation/theme.dart';
+import 'test_fonts.dart';
 
 void main() {
   final agent = Agent(
@@ -28,12 +29,7 @@ void main() {
     testWidgets('watch card buttons readable (dark=$dark)', (t) async {
       await t.runAsync(() async {
         await Directory('/tmp/lookout-shots').create(recursive: true);
-        final f = File('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf');
-        if (await f.exists()) {
-          final l = FontLoader('Roboto')
-            ..addFont(Future.value(ByteData.sublistView(await f.readAsBytes())));
-          await l.load();
-        }
+        await loadTestFonts();
       });
       await t.binding.setSurfaceSize(const Size(390, 500));
       final key = GlobalKey();
