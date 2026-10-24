@@ -14,6 +14,29 @@ import 'general_discovery_test.dart' as general;
 import 'next_update_test.dart' as h;
 import 'recovery_capture_test.dart' as capture;
 
+/// The create screen opens on the price-boxes view; these flows exercise the
+/// describe flow, one tap away. Scroll offset survives the mode switch, so
+/// return to the top before driving the describe form.
+Future<void> switchToDescribeMode(WidgetTester t) async {
+  await t.scrollUntilVisible(
+    find.text('Set a reminder or watch text on a page instead'),
+    300,
+    scrollable: find.byType(Scrollable).first,
+    maxScrolls: 80,
+  );
+  await t.ensureVisible(
+    find.text('Set a reminder or watch text on a page instead'),
+  );
+  await t.pumpAndSettle();
+  await t.tap(
+    find.text('Set a reminder or watch text on a page instead'),
+    warnIfMissed: false,
+  );
+  await t.pumpAndSettle();
+  await t.drag(find.byType(Scrollable).first, const Offset(0, 4000));
+  await t.pumpAndSettle();
+}
+
 void main() {
   for (final category in ['price', 'results', 'announcement']) {
     testWidgets(
@@ -54,6 +77,7 @@ void main() {
         if (category == 'results') {
           await capture.capture(t, key, '01-general-create-dark');
         }
+        await switchToDescribeMode(t);
         await t.enterText(find.byType(TextField).first, task);
         await capture.tap(t, find.text('Find matching source'));
         expect(find.byType(SourceReviewScreen), findsOneWidget);
