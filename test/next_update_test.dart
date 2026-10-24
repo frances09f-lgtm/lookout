@@ -14,6 +14,29 @@ import 'package:lookout/services/page_fetch.dart';
 import 'package:lookout/services/source_discovery.dart';
 import 'package:sqflite_common_ffi/sqflite_common_ffi.dart';
 
+/// The create screen opens on the price-boxes view; these flows exercise the
+/// describe flow, one tap away. Scroll offset survives the mode switch, so
+/// return to the top before driving the describe form.
+Future<void> switchToDescribeMode(WidgetTester t) async {
+  await t.scrollUntilVisible(
+    find.text('Set a reminder or watch text on a page instead'),
+    300,
+    scrollable: find.byType(Scrollable).first,
+    maxScrolls: 80,
+  );
+  await t.ensureVisible(
+    find.text('Set a reminder or watch text on a page instead'),
+  );
+  await t.pumpAndSettle();
+  await t.tap(
+    find.text('Set a reminder or watch text on a page instead'),
+    warnIfMissed: false,
+  );
+  await t.pumpAndSettle();
+  await t.drag(find.byType(Scrollable).first, const Offset(0, 4000));
+  await t.pumpAndSettle();
+}
+
 Agent watch({String? source, double? current}) => Agent(
   title: 'iPhone 15',
   originalPrompt: 'iphone 15 below ₹60000',
@@ -245,6 +268,7 @@ void main() {
               ),
             );
             await t.pumpAndSettle();
+            await switchToDescribeMode(t);
             await t.scrollUntilVisible(
               find.text('Watch a value'),
               150,
