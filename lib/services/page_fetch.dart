@@ -24,6 +24,11 @@ class FetchOutcome {
 /// Fetches a web page and extracts the most plausible numeric value from it.
 /// Uses only dart:io (no new dependencies).
 class PageValueFetcher {
+  /// Test seam: widget tests substitute a fake fetch so loading, success and
+  /// error states of the "Test link" button are exercised without network.
+  /// Always null in production.
+  static Future<FetchOutcome> Function(String url)? debugFetchValue;
+
   /// Extracts a value from raw page text. Exposed for testing.
   /// Preference: numbers tagged with a currency symbol, then numbers sitting
   /// next to price words, then nothing (we never invent a value).
