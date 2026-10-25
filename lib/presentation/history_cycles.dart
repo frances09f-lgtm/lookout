@@ -29,7 +29,7 @@ String fmtHistoryTime(DateTime t) =>
     '${t.day}/${t.month} ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
 /// The honest outcome of one check cycle, derived only from what was logged.
-enum CycleState { noResult, failed, notMet, met }
+enum CycleState { updated, noResult, failed, notMet, met }
 
 class HistoryCycle {
   final List<ActivityEntry> entries;
@@ -39,14 +39,36 @@ class HistoryCycle {
 
   bool _has(String prefix) => entries.any((e) => e.message.startsWith(prefix));
 
+  /// Lines only an actual check run writes. Their absence means the group
+  /// is an edit/save event, not a check - never render one as the other.
+  static const _checkMarkers = [
+    'Started check',
+    'Fetched data',
+    'Clock checked',
+    'Manual value checked',
+    'Unable to check',
+    'Condition met',
+    'Condition not met',
+  ];
+
   CycleState get state {
+    if (!_checkMarkers.any(_has)) return CycleState.updated;
     if (_has('Unable to check')) return CycleState.failed;
     if (_has('Condition met')) return CycleState.met;
     if (_has('Condition not met')) return CycleState.notMet;
     return CycleState.noResult;
   }
 
+  /// A check that started but never recorded any outcome, long enough ago
+  /// that it is not merely still running. Signals an interrupted check
+  /// (process killed mid-run) rather than an edit or a completed cycle.
+  bool get looksInterrupted =>
+      state == CycleState.noResult &&
+      _has('Started check') &&
+      DateTime.now().difference(at).inMinutes > 2;
+
   String get title => switch (state) {
+    CycleState.updated => 'Task updated',
     CycleState.failed => 'Unable to check',
     CycleState.met => 'Condition met',
     CycleState.notMet => 'Condition not met',
@@ -54,6 +76,7 @@ class HistoryCycle {
   };
 
   String get badge => switch (state) {
+    CycleState.updated => 'Saved',
     CycleState.failed => 'Failed',
     CycleState.met => 'Done',
     CycleState.notMet => 'Not yet',
@@ -61,6 +84,7 @@ class HistoryCycle {
   };
 
   (Color, Color) get colors => switch (state) {
+    CycleState.updated => (XColors.sky, XColors.skyDeep),
     CycleState.failed => (XColors.peach, XColors.peachDeep),
     CycleState.met => (XColors.mint, XColors.mintDeep),
     CycleState.notMet => (XColors.sky, XColors.skyDeep),
@@ -68,6 +92,7 @@ class HistoryCycle {
   };
 
   IconData get icon => switch (state) {
+    CycleState.updated => Icons.edit_outlined,
     CycleState.failed => Icons.warning_amber_rounded,
     CycleState.met => Icons.check_circle_outline,
     CycleState.notMet => Icons.check,
