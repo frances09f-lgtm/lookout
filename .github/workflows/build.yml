@@ -50,8 +50,8 @@ jobs:
           test "$CERT_SHA" = '21e086dd5542df3c6f3cb10318e2508517edd28d91f5a388cc3fa79f2e74bdd4'
           "$AAPT" dump badging "$APK" | tee /tmp/badging.txt
           grep -F "package: name='com.ambi.lookout'" /tmp/badging.txt
-          grep -F "versionName='1.1.6'" /tmp/badging.txt
-          test "${{ github.run_number }}" -gt 81
+          grep -F "versionName='1.1.7'" /tmp/badging.txt
+          test "${{ github.run_number }}" -gt 93
           sha256sum "$APK"
       - uses: actions/upload-artifact@v4
         with:
@@ -62,5 +62,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo 'IyBMb29rb3V0IDEuMS42CgojIyBGaXhlZAotIFRhc2sgZWRpdHMgbm8gbG9uZ2VyIG1hc3F1ZXJhZGUgYXMgZmFpbGVkIGNoZWNrcy4gQSBoaXN0b3J5IGNhcmQgd2l0aCBubwogIHJlY29yZGVkIGNoZWNrIGFjdGl2aXR5IChlLmcuIGEgdGFyZ2V0IGVkaXQpIG5vdyBzaG93cyAiVGFzayB1cGRhdGVkIC8gU2F2ZWQiCiAgaW5zdGVhZCBvZiAiU3RhcnRlZCBjaGVjayAvIE5vIHJlc3VsdCIuCi0gQSBjaGVjayB0aGF0IHN0YXJ0ZWQgYnV0IHJlY29yZGVkIG5vIHJlc3VsdCBmb3Igb3ZlciAyIG1pbnV0ZXMgaXMgbm93CiAgZmxhZ2dlZCBob25lc3RseTogIkEgY2hlY2sgc3RhcnRlZCwgYnV0IG5vIHJlc3VsdCB3YXMgcmVjb3JkZWQuIFRoZSByZWFzb24KICBpcyB1bmtub3duLiIKCiMjIEFkZGVkCi0gVGhlIHRhc2sgaGlzdG9yeSBoZWFkZXIgc2hvd3MgdGhlIGNoZWNrIGludGVydmFsLCB0aGUgbmV4dCBzY2hlZHVsZWQgY2hlY2sKICB0aW1lLCB3aGVuIHRoZSBiYWNrZ3JvdW5kIHdvcmtlciBsYXN0IHJhbiAoYXBwLXdpZGUpLCBhbmQgYW55IHJlY29yZGVkCiAgYmFja2dyb3VuZCB3b3JrZXIgZXJyb3IgLSBzbyBhIHNpbGVudCBzY2hlZHVsZSBpcyB2aXNpYmxlIGluc3RlYWQgb2YKICBpbmRpc3Rpbmd1aXNoYWJsZSBmcm9tIG5vIGFjdGl2aXR5LgoKIyMgTm90ZXMKLSBUaGVzZSBjaGFuZ2VzIG1ha2UgYmFja2dyb3VuZCBzY2hlZHVsaW5nIG9ic2VydmFibGU7IHRoZXkgZG8gbm90IGNoYW5nZSBob3cKICBvZnRlbiBBbmRyb2lkIHJ1bnMgdGhlIHdvcmtlci4K' | base64 -d > /tmp/RELEASE_NOTES.md
-          gh release create v1.1.6 "build/app/outputs/flutter-apk/Lookout.apk" --target "$GITHUB_SHA" --title "Lookout 1.1.6 - Honest check history and background worker visibility" --notes-file /tmp/RELEASE_NOTES.md
+          echo 'IyBMb29rb3V0IDEuMS43CgojIyBGaXhlZAotIFVwZGF0ZSBjaGVja3Mgbm8gbG9uZ2VyIHJlcG9ydCAiTm8gdXBkYXRlIGF2YWlsYWJsZSIgd2hlbiB0aGUgY2hlY2sgaXRzZWxmIGZhaWxlZCAobmV0d29yayBlcnJvciwgcmF0ZSBsaW1pdCkuIFRoZSBhcHAgbm93IHNheXMgaXQgY291bGQgbm90IGNoZWNrLCBhbmQgdG8gdHJ5IGFnYWluLgotIEEgZmFpbGVkIGF1dG9tYXRpYyBjaGVjayByZXRyaWVzIGluIDE1IG1pbnV0ZXMgaW5zdGVhZCBvZiBoaWRpbmcgdXBkYXRlcyBmb3IgNiBob3Vycy4KLSAiRmluZCBwcm9kdWN0IHNvdXJjZSIgbm93IHdvcmtzIGZvciBsaXZlIG1hcmtldCBwcmljZXMgbGlrZSBCaXRjb2luOiAid2F0Y2ggYml0Y29pbiB1bmRlciAkOTAwMDAiIGZpbmRzIGFuZCB2ZXJpZmllcyBhIHJlYWwgcHJpY2Ugc291cmNlIGJ5IGl0c2VsZiAoQ29pbkdlY2tvIG9yIENvaW5iYXNlKSBpbnN0ZWFkIG9mIGFza2luZyBmb3IgYSBsaW5rLiBOYXR1cmFsIHBocmFzaW5ncyBsaWtlICJ1bmRlciAkOTAwMDAiIG9yICJhYm92ZSA3MDAwMCIgYXJlIHVuZGVyc3Rvb2QuCgojIyBDaGFuZ2VkCi0gVXBkYXRlIGNoZWNrcyB1c2UgYSBsaWdodHdlaWdodCB1cGRhdGUgZmVlZCBmaXJzdCAobm8gR2l0SHViIHJhdGUgbGltaXRzKSwgZmFsbGluZyBiYWNrIHRvIEdpdEh1YiByZWxlYXNlcyBhdXRvbWF0aWNhbGx5Lgo=' | base64 -d > /tmp/RELEASE_NOTES.md
+          gh release create v1.1.7 "build/app/outputs/flutter-apk/Lookout.apk" --target "$GITHUB_SHA" --title "Lookout 1.1.7 - Honest update checks and Bitcoin source discovery" --notes-file /tmp/RELEASE_NOTES.md
