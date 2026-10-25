@@ -41,7 +41,7 @@ class _FeedClient extends http.BaseClient {
   _FeedClient(this.mode);
   final String mode; // 'update' | 'same' | 'fail'
   static const feedBody =
-      '{"lookout":{"version":"1.1.7","notes":"Honest update checks: a failed check no longer looks like \\"No update available\\", and failed automatic checks retry in 15 minutes instead of hiding updates for 6 hours. New: finds live market price sources (like Bitcoin) by itself - no link needed.","apk":"https://lookout-apk.pages.dev/Lookout-v1.1.7.apk"}}';
+      '{"lookout":{"version":"1.1.8","notes":"Fixes update dialog text that was unreadable in light theme. Includes 1.1.7: honest update checks - a failed check no longer looks like \\"No update available\\", and failed automatic checks retry in 15 minutes instead of 6 hours. Finds live market price sources (like Bitcoin) by itself - no link needed.","apk":"https://lookout-apk.pages.dev/Lookout-v1.1.8.apk"}}';
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
@@ -109,8 +109,8 @@ void main() {
     await t.tap(find.text('Check for updates'));
     await t.pump();
     await t.pump(const Duration(milliseconds: 800));
-    expect(find.text('Lookout 1.1.7 is available'), findsOneWidget);
-    await t.runAsync(() => _shot(rootKey, 'v117-dialog-light-manual'));
+    expect(find.text('Lookout 1.1.8 is available'), findsOneWidget);
+    await t.runAsync(() => _shot(rootKey, 'v118-dialog-light-manual'));
     await t.tap(find.text('Later'));
     await t.pump();
     await t.pump(const Duration(milliseconds: 400));
@@ -126,8 +126,8 @@ void main() {
     await t.tap(find.text('auto'));
     await t.pump();
     await t.pump(const Duration(milliseconds: 800));
-    expect(find.text('Lookout 1.1.7 is available'), findsOneWidget);
-    await t.runAsync(() => _shot(rootKey, 'v117-dialog-dark-auto'));
+    expect(find.text('Lookout 1.1.8 is available'), findsOneWidget);
+    await t.runAsync(() => _shot(rootKey, 'v118-dialog-dark-auto'));
     await t.tap(find.text('Later'));
     await t.pump();
     await t.pump(const Duration(milliseconds: 400));
@@ -153,7 +153,7 @@ void main() {
       theme: LookoutTheme.light(),
       label: 'Check for updates',
       onTap: (ctx) =>
-          checkUpdateManually(ctx, checker: _checker('same', '1.1.7')),
+          checkUpdateManually(ctx, checker: _checker('same', '1.1.8')),
     ));
     await t.tap(find.text('Check for updates'));
     await t.pump();
