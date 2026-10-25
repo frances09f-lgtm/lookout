@@ -1,8 +1,15 @@
 name: Build APK
 on:
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Publish the verified APK as a GitHub release
+        type: boolean
+        default: false
   push:
     branches: [main]
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -32,7 +39,28 @@ jobs:
           APP_VERSION=$(grep '^version:' pubspec.yaml | sed -E 's/version: ([0-9.]+).*/\1/')
           flutter build apk --release --target-platform android-arm64 --build-number=${{ github.run_number }} --build-name="$APP_VERSION" -v
       - run: mv build/app/outputs/flutter-apk/app-release.apk "build/app/outputs/flutter-apk/Lookout.apk"
+      - name: Verify production APK identity and certificate
+        run: |
+          APK="build/app/outputs/flutter-apk/Lookout.apk"
+          SIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -name aapt | sort -V | tail -1)"
+          "$SIGNER" verify --verbose --print-certs "$APK" | tee /tmp/certificate.txt
+          grep -Fx 'Number of signers: 1' /tmp/certificate.txt
+          CERT_SHA="$(awk '/certificate SHA-256 digest:/ {print $NF}' /tmp/certificate.txt | sort -u)"
+          test "$CERT_SHA" = '21e086dd5542df3c6f3cb10318e2508517edd28d91f5a388cc3fa79f2e74bdd4'
+          "$AAPT" dump badging "$APK" | tee /tmp/badging.txt
+          grep -F "package: name='com.ambi.lookout'" /tmp/badging.txt
+          grep -F "versionName='1.1.6'" /tmp/badging.txt
+          test "${{ github.run_number }}" -gt 81
+          sha256sum "$APK"
       - uses: actions/upload-artifact@v4
         with:
           name: lookout-release-apk
           path: "build/app/outputs/flutter-apk/Lookout.apk"
+      - name: Publish verified release
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo 'IyBMb29rb3V0IDEuMS42CgojIyBGaXhlZAotIFRhc2sgZWRpdHMgbm8gbG9uZ2VyIG1hc3F1ZXJhZGUgYXMgZmFpbGVkIGNoZWNrcy4gQSBoaXN0b3J5IGNhcmQgd2l0aCBubwogIHJlY29yZGVkIGNoZWNrIGFjdGl2aXR5IChlLmcuIGEgdGFyZ2V0IGVkaXQpIG5vdyBzaG93cyAiVGFzayB1cGRhdGVkIC8gU2F2ZWQiCiAgaW5zdGVhZCBvZiAiU3RhcnRlZCBjaGVjayAvIE5vIHJlc3VsdCIuCi0gQSBjaGVjayB0aGF0IHN0YXJ0ZWQgYnV0IHJlY29yZGVkIG5vIHJlc3VsdCBmb3Igb3ZlciAyIG1pbnV0ZXMgaXMgbm93CiAgZmxhZ2dlZCBob25lc3RseTogIkEgY2hlY2sgc3RhcnRlZCwgYnV0IG5vIHJlc3VsdCB3YXMgcmVjb3JkZWQuIFRoZSByZWFzb24KICBpcyB1bmtub3duLiIKCiMjIEFkZGVkCi0gVGhlIHRhc2sgaGlzdG9yeSBoZWFkZXIgc2hvd3MgdGhlIGNoZWNrIGludGVydmFsLCB0aGUgbmV4dCBzY2hlZHVsZWQgY2hlY2sKICB0aW1lLCB3aGVuIHRoZSBiYWNrZ3JvdW5kIHdvcmtlciBsYXN0IHJhbiAoYXBwLXdpZGUpLCBhbmQgYW55IHJlY29yZGVkCiAgYmFja2dyb3VuZCB3b3JrZXIgZXJyb3IgLSBzbyBhIHNpbGVudCBzY2hlZHVsZSBpcyB2aXNpYmxlIGluc3RlYWQgb2YKICBpbmRpc3Rpbmd1aXNoYWJsZSBmcm9tIG5vIGFjdGl2aXR5LgoKIyMgTm90ZXMKLSBUaGVzZSBjaGFuZ2VzIG1ha2UgYmFja2dyb3VuZCBzY2hlZHVsaW5nIG9ic2VydmFibGU7IHRoZXkgZG8gbm90IGNoYW5nZSBob3cKICBvZnRlbiBBbmRyb2lkIHJ1bnMgdGhlIHdvcmtlci4K' | base64 -d > /tmp/RELEASE_NOTES.md
+          gh release create v1.1.6 "build/app/outputs/flutter-apk/Lookout.apk" --target "$GITHUB_SHA" --title "Lookout 1.1.6 - Honest check history and background worker visibility" --notes-file /tmp/RELEASE_NOTES.md
