@@ -314,6 +314,12 @@ class UpdateChecker {
   Future<void> openInstallSettings() => _openInstallSettings();
 }
 
+/// Test seam: widget tests set this true to exercise the real manual/auto
+/// check control flow with a stubbed [UpdateChecker]. Never set in
+/// production; the FLUTTER_TEST guard below still protects unrelated tests.
+@visibleForTesting
+bool debugRunUpdateChecksInTests = false;
+
 /// Root navigator key for apps that set MaterialApp.navigatorKey: lets the
 /// update dialog survive splash->home navigation.
 final appNavigatorKey = GlobalKey<NavigatorState>();
@@ -334,7 +340,10 @@ Future<void> maybePromptUpdate(
   BuildContext context, {
   UpdateChecker? checker,
 }) async {
-  if (Platform.environment['FLUTTER_TEST'] == 'true') return;
+  if (Platform.environment['FLUTTER_TEST'] == 'true' &&
+      !debugRunUpdateChecksInTests) {
+    return;
+  }
   final c = checker ?? UpdateChecker();
   final info = await c.autoCheck();
   if (info != null && context.mounted) {
@@ -347,7 +356,10 @@ Future<void> checkUpdateManually(
   BuildContext context, {
   UpdateChecker? checker,
 }) async {
-  if (Platform.environment['FLUTTER_TEST'] == 'true') return;
+  if (Platform.environment['FLUTTER_TEST'] == 'true' &&
+      !debugRunUpdateChecksInTests) {
+    return;
+  }
   final c = checker ?? UpdateChecker();
   final result = await c.checkLatest();
   if (!context.mounted) return;
@@ -449,6 +461,9 @@ class _UpdateDialogState extends State<_UpdateDialog> {
   @override
   Widget build(BuildContext context) {
     const dim = Color(0xFF8A93A6);
+    // The panel below is hardcoded dark in both app themes, so text on it
+    // must be hardcoded light; theme text colors are dark in light mode.
+    const light = Color(0xFFF2F4F8);
     final v = widget.info.version;
     final progress = total != null && total! > 0
         ? (received / total!).clamp(0.0, 1.0)
@@ -456,7 +471,11 @@ class _UpdateDialogState extends State<_UpdateDialog> {
     return AlertDialog(
       backgroundColor: const Color(0xFF151A24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: const Text('Software Update', textAlign: TextAlign.center),
+      title: const Text(
+        'Software Update',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: light, fontWeight: FontWeight.w600),
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -491,7 +510,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
                 'Android asks once: allow this app to install updates. '
                 'On the next screen, turn on "Allow from this source", '
                 'then come back and tap Update again.',
-                style: TextStyle(fontSize: 13),
+                style: TextStyle(fontSize: 13, color: dim),
               ),
             ),
           if (phase == _Phase.error)
@@ -507,7 +526,11 @@ class _UpdateDialogState extends State<_UpdateDialog> {
             const SizedBox(height: 12),
             const Text(
               "What's new",
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: light,
+              ),
             ),
             const SizedBox(height: 6),
             ConstrainedBox(
@@ -527,9 +550,17 @@ class _UpdateDialogState extends State<_UpdateDialog> {
         if (phase == _Phase.available) ...[
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
+            style: TextButton.styleFrom(foregroundColor: dim),
             child: const Text('Later'),
           ),
-          FilledButton(onPressed: _start, child: const Text('Update')),
+          FilledButton(
+            onPressed: _start,
+            style: FilledButton.styleFrom(
+              backgroundColor: light,
+              foregroundColor: const Color(0xFF151A24),
+            ),
+            child: const Text('Update'),
+          ),
         ],
         if (phase == _Phase.downloading)
           TextButton(
