@@ -442,6 +442,7 @@ class AgentCard extends StatelessWidget {
                       xSwitch(
                         value: running,
                         accent: accent,
+                        accentDark: pastel.$2,
                         onChanged: (_) => onPauseResume(),
                       )
                     else
