@@ -19,7 +19,10 @@ class LocalNotificationsService implements LookoutNotifier {
   LocalNotificationsService({FlutterLocalNotificationsPlugin? plugin, this.onTapAgent})
       : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
-  Future<void> init() async {
+  /// [requestPermission] must stay true only for the foreground app: the
+  /// WorkManager dispatcher runs without an activity, where a runtime
+  /// permission prompt has nothing to attach to.
+  Future<void> init({bool requestPermission = true}) async {
     const init = InitializationSettings(
         android: AndroidInitializationSettings('@mipmap/ic_launcher'));
     await _plugin.initialize(
@@ -33,10 +36,12 @@ class LocalNotificationsService implements LookoutNotifier {
       },
     );
     // Android 13+ runtime permission.
-    await _plugin
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestNotificationsPermission();
+    if (requestPermission) {
+      await _plugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.requestNotificationsPermission();
+    }
   }
 
   @override
