@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lookout/data/agent_repository.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:lookout/domain/agent.dart';
 import 'package:lookout/presentation/activity_screen.dart';
 import 'package:lookout/presentation/theme.dart';
@@ -46,6 +47,10 @@ Future<void> _shot(GlobalKey key, String name) async {
 }
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
   testWidgets('edit-only group renders as Task updated, with schedule lines',
       (t) async {
     await t.runAsync(() async {
@@ -83,7 +88,7 @@ void main() {
     expect(find.text('NO RESULT'), findsNothing);
     expect(find.textContaining('Checks every 1 h'), findsOneWidget);
     expect(find.textContaining('next check scheduled for'), findsOneWidget);
-    expect(find.textContaining('Background worker last ran:'), findsOneWidget);
+    expect(find.textContaining('Background worker last completed:'), findsOneWidget);
     expect(find.textContaining('(app-wide)'), findsOneWidget);
     expect(t.takeException(), isNull);
 
