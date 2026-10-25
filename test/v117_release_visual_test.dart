@@ -41,7 +41,7 @@ class _FeedClient extends http.BaseClient {
   _FeedClient(this.mode);
   final String mode; // 'update' | 'same' | 'fail'
   static const feedBody =
-      '{"lookout":{"version":"1.1.11","notes":"The app can no longer get stuck on the logo at startup: a failing startup step now says on screen what failed and why. Notification or scheduling problems no longer block the app and are shown instead. Includes 1.1.9: honest task history, reliable background checks, readable update dialog, Bitcoin source discovery.","apk":"https://lookout-apk.pages.dev/Lookout-v1.1.11.apk"}}';
+      '{"lookout":{"version":"1.1.11","notes":"The watch on/off switch was hard to read in dark theme: a white knob on a pale track washed together. It now uses the same deep accent as light theme, so on and off are clearly different in both themes. Includes 1.1.10: a failing startup step now says on screen what failed instead of leaving the app on the logo, and notification or scheduling problems are shown instead of blocking the app. Includes 1.1.9: honest task history, reliable background checks, readable update dialog, Bitcoin source discovery.","apk":"https://lookout-apk.pages.dev/Lookout-v1.1.11.apk"}}';
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
