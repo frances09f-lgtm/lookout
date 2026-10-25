@@ -26,7 +26,7 @@ void main() {
     final checker = AgentChecker(
         repo: repo, notifier: notifier, clock: () => now);
     final count = await checker.checkDueAgents();
-    expect(count, 1);
+    expect(count.checked, 1);
     expect(notifier.shown, hasLength(1));
     final stored = await repo.agentById(id);
     expect(stored!.status, AgentStatus.completed);
@@ -149,7 +149,7 @@ void main() {
     await repo.insertAgent(reminder(due: DateTime(2026, 1, 1))
         .copyWith(status: AgentStatus.paused));
     final checker = AgentChecker(repo: repo, notifier: notifier, clock: () => DateTime(2026, 1, 2));
-    expect(await checker.checkDueAgents(), 0);
+    expect((await checker.checkDueAgents()).checked, 0);
     expect(notifier.shown, isEmpty);
   });
 }
