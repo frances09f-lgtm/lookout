@@ -27,18 +27,28 @@ void main() {
     );
     expect(await same.fetchLatest(), isNull);
   });
-  test('autoCheck stamps failures and respects the interval', () async {
+  test('autoCheck backs off briefly on failure, fully on success', () async {
     SharedPreferences.setMockInitialValues({});
     var calls = 0;
+    var now = DateTime.now();
     final c = UpdateChecker(
       client: MockClient((_) async {
         calls++;
         return http.Response('x', 500);
       }),
       currentVersion: () async => '1.0.19',
+      clock: () => now,
     );
+    // One failed check = feed request + GitHub fallback request.
     expect(await c.autoCheck(), isNull);
+    expect(calls, 2);
+    // Within the short failure backoff: no new fetch.
+    now = now.add(const Duration(minutes: 5));
     expect(await c.autoCheck(), isNull);
-    expect(calls, 1);
+    expect(calls, 2);
+    // After the short retry window (not 6h): fetches again.
+    now = now.add(kAutoCheckRetryAfterFailure);
+    expect(await c.autoCheck(), isNull);
+    expect(calls, 4);
   });
 }
