@@ -20,10 +20,30 @@ void lookoutCallbackDispatcher() {
       await notifier.init();
       final repo = await SqfliteAgentRepository.open();
       final checker = AgentChecker(repo: repo, notifier: notifier);
-      await checker.checkDueAgents();
+      final checked = await checker.checkDueAgents();
+      // Liveness diagnostics, not task activity: lets the app show when the
+      // background worker last ran (and how much was due) without inventing
+      // per-task history entries.
+      await repo.putKv(
+        'lastBackgroundRunAt',
+        DateTime.now().toIso8601String(),
+      );
+      await repo.putKv('lastBackgroundRunChecked', '$checked');
       await repo.close();
       return true;
-    } catch (_) {
+    } catch (e) {
+      // Persist the failure so the app can surface it later - a swallowed
+      // exception here is otherwise indistinguishable from never running.
+      try {
+        final repo = await SqfliteAgentRepository.open();
+        await repo.putKv(
+          'lastBackgroundError',
+          '${DateTime.now().toIso8601String()} $e',
+        );
+        await repo.close();
+      } catch (_) {
+        // The store itself may be what failed; nothing more we can record.
+      }
       // Return false so WorkManager retries with backoff instead of dropping
       // the cycle silently.
       return false;
