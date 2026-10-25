@@ -29,8 +29,11 @@ Future<void> _card(WidgetTester t, Agent agent, bool dark, String name,
     {void Function(Switch sw)? inspect}) async {
   await t.binding.setSurfaceSize(const Size(390, 340));
   final key = GlobalKey();
+  // Fresh element tree per shot: reusing the tree across a theme flip lets
+  // the card build once against the previous shot's theme (stale accent).
   await t.pumpWidget(
     MaterialApp(
+      key: ValueKey('$dark-${agent.status}'),
       theme: dark ? LookoutTheme.dark() : LookoutTheme.light(),
       home: Scaffold(
         body: RepaintBoundary(
