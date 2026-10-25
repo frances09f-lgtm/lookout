@@ -115,6 +115,14 @@ class GoalParser {
     'less than',
     'under ₹',
     'under rs',
+    'under \$',
+    'below \$',
+    'above \$',
+    'over \$',
+    'under ',
+    'below ',
+    'above ',
+    'over ',
     'goes above',
     'rises above',
     'more than',
@@ -177,7 +185,10 @@ class GoalParser {
           lower.contains('more than') ||
           lower.contains('costlier than') ||
           lower.contains('above ₹') ||
-          lower.contains('above rs');
+          lower.contains('above rs') ||
+          lower.contains('above \$') ||
+          lower.contains('over \$') ||
+          RegExp(r'\b(?:above|over)\b').hasMatch(lower);
       return ParsedGoal.ok(
         title: _title(input),
         type: AgentType.valueWatch,
