@@ -96,6 +96,11 @@ class SqfliteAgentRepository implements AgentRepository {
       },
     );
     await db.execute('PRAGMA foreign_keys = ON');
+    // The background worker keeps its own connection to this file. Without
+    // a busy timeout a read that races one of its writes fails instantly
+    // with SQLITE_BUSY - which is how a history screen shows "Could not
+    // load" while the data is fine. Wait briefly instead.
+    await db.execute('PRAGMA busy_timeout = 4000');
     return SqfliteAgentRepository._(db);
   }
 
@@ -133,6 +138,9 @@ class SqfliteAgentRepository implements AgentRepository {
       'agents',
       where: 'status = ? AND (nextCheckAt IS NULL OR nextCheckAt <= ?)',
       whereArgs: [AgentStatus.active.name, now.millisecondsSinceEpoch],
+      // Never-checked first, then most overdue first (SQLite sorts NULLs
+      // first in ASC), so a time-budgeted sweep is fair.
+      orderBy: 'nextCheckAt ASC',
     );
     return rows
         .map(Agent.fromMap)
@@ -160,7 +168,10 @@ class SqfliteAgentRepository implements AgentRepository {
       orderBy: 'timestamp DESC',
       limit: limit,
     );
-    return rows.map(ActivityEntry.fromMap).toList();
+    return rows
+        .map(ActivityEntry.tryFromMap)
+        .whereType<ActivityEntry>()
+        .toList();
   }
 
   @override
@@ -170,7 +181,10 @@ class SqfliteAgentRepository implements AgentRepository {
       orderBy: 'timestamp DESC',
       limit: limit,
     );
-    return rows.map(ActivityEntry.fromMap).toList();
+    return rows
+        .map(ActivityEntry.tryFromMap)
+        .whereType<ActivityEntry>()
+        .toList();
   }
 
   @override
