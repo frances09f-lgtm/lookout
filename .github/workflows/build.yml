@@ -50,8 +50,8 @@ jobs:
           test "$CERT_SHA" = '21e086dd5542df3c6f3cb10318e2508517edd28d91f5a388cc3fa79f2e74bdd4'
           "$AAPT" dump badging "$APK" | tee /tmp/badging.txt
           grep -F "package: name='com.ambi.lookout'" /tmp/badging.txt
-          grep -F "versionName='1.1.9'" /tmp/badging.txt
-          test "${{ github.run_number }}" -gt 111
+          grep -F "versionName='1.1.10'" /tmp/badging.txt
+          test "${{ github.run_number }}" -gt 155
           sha256sum "$APK"
       - uses: actions/upload-artifact@v4
         with:
@@ -62,5 +62,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo 'IyBMb29rb3V0IDEuMS45CgojIyBGaXhlZAotIFRhc2sgaGlzdG9yeSBjb3VsZCBmYWlsIHRvIG9wZW4gd2l0aCAiQ291bGQgbm90IGxvYWQgdGhpcyB0YXNrJ3MgaGlzdG9yeSIgd2hpbGUgdGhlIGRhdGEgd2FzIGZpbmUuIFJlYWRzIG5vdyB3YWl0IG91dCBicmllZiBiYWNrZ3JvdW5kLXdyaXRlIGxvY2tzLCBvbmUgdW5yZWFkYWJsZSByb3cgY2FuIG5vIGxvbmdlciBibGFuayBhIHdob2xlIGhpc3RvcnksIGFuZCBpZiBsb2FkaW5nIHN0aWxsIGZhaWxzIHRoZSBzY3JlZW4gc2F5cyB3aHkuCi0gQmFja2dyb3VuZCBjaGVja3MgY291bGQgZG8gd29yayBmb3IgYSBsb25nIHN0cmV0Y2ggd2l0aG91dCBldmVyIGZpbmlzaGluZzogYSBsYXJnZSBxdWV1ZSBvZiBvdmVyZHVlIHdhdGNoZXMgcGx1cyBzbG93IHBhZ2VzIGNvdWxkIHJ1biBwYXN0IEFuZHJvaWQncyBiYWNrZ3JvdW5kIHRpbWUgbGltaXQgYW5kIGJlIHN0b3BwZWQgbWlkLWNoZWNrLCBsZWF2aW5nIG5vIHJlY29yZCBhdCBhbGwuIFN3ZWVwcyBhcmUgbm93IHRpbWUtYnVkZ2V0ZWQsIG1vc3Qtb3ZlcmR1ZS1maXJzdCwgYW5kIHRoZSByZXN0IHNpbXBseSBzdGF5IGR1ZSBmb3IgdGhlIG5leHQgY3ljbGUuCi0gVGhlIGhpc3Rvcnkgc2NyZWVuIG5vdyBzaG93cyB3aGVuIHRoZSBiYWNrZ3JvdW5kIHdvcmtlciBsYXN0IHN0YXJ0ZWQgYW5kIGxhc3QgY29tcGxldGVkLCBzbyAic3RhcnRlZCBidXQgbmV2ZXIgZmluaXNoZWQiIGlzIHZpc2libGUgaW5zdGVhZCBvZiBsb29raW5nIGxpa2UgIm5ldmVyIHJhbiIuIFN0YXR1cyByZWFkIGZhaWx1cmVzIGFyZSBzaG93biBhcyB0aGVtc2VsdmVzLCBub3QgYXMgIm5vIHJlY29yZGVkIHJ1biB5ZXQiLgoKIyMgQ2hhbmdlZAotIFRoZSBiYWNrZ3JvdW5kIHdvcmtlciByZWNvcmRzIGl0cyBzdGFydCwgY29tcGxldGlvbiwgYW5kIGVycm9ycyBpbiBhIHNlY29uZCwgaW5kZXBlbmRlbnQgc3RvcmUsIHNvIGxpdmVuZXNzIHN1cnZpdmVzIGEgZGF0YWJhc2UgcHJvYmxlbS4KLSBSZXBlYXRlZCBmb3JlZ3JvdW5kIGNoZWNrcyBjYW4gbm8gbG9uZ2VyIHBpbGUgdXAgYW5kIGRvdWJsZS1ydW4gdGhlIHNhbWUgd2F0Y2hlcy4K' | base64 -d > /tmp/RELEASE_NOTES.md
-          gh release create v1.1.9 "build/app/outputs/flutter-apk/Lookout.apk" --target "$GITHUB_SHA" --title "Lookout 1.1.9 - Reliable background checks and honest history" --notes-file /tmp/RELEASE_NOTES.md
+          echo 'IyBMb29rb3V0IDEuMS4xMAoKIyMgRml4ZWQKLSBUaGUgYXBwIGNvdWxkIGdldCBzdHVjayBzaG93aW5nIG9ubHkgdGhlIGxvZ28gd2hlbiBhIHN0YXJ0dXAgc3RlcCBmYWlsZWQgb3IgaHVuZy4gVGhlIGZpcnN0IHNjcmVlbiBub3cgYWx3YXlzIHJlbmRlcnMsIGVhY2ggc3RhcnR1cCBzdGVwIGlzIHRpbWUtbGltaXRlZCwgYW5kIGEgZmFpbHVyZSBzaG93cyBleGFjdGx5IHdoaWNoIHN0ZXAgZmFpbGVkIGFuZCB3aHkgb24gc2NyZWVuIGluc3RlYWQgb2YgYSBzaWxlbnQgbG9nby4KLSBOb3RpZmljYXRpb24gc2V0dXAgb3IgYmFja2dyb3VuZC1jaGVjayBzY2hlZHVsaW5nIHByb2JsZW1zIG5vIGxvbmdlciBrZWVwIHRoZSBhcHAgZnJvbSBvcGVuaW5nOyB0aGV5IGFyZSBzaG93biBpbiBhIHZpc2libGUgd2FybmluZyBhbmQgcmVjb3JkZWQgZm9yIHRoZSBoaXN0b3J5IHNjcmVlbidzIGJhY2tncm91bmQgc3RhdHVzLgoKIyMgSW5jbHVkZXMgYWxsIG9mIDEuMS45Ci0gVGFzayBoaXN0b3J5IG9wZW5zIHJlbGlhYmx5IGFuZCBzYXlzIHdoeSBpZiBpdCBjYW5ub3QuCi0gQmFja2dyb3VuZCBjaGVja3MgYXJlIHRpbWUtYnVkZ2V0ZWQsIG1vc3Qtb3ZlcmR1ZS1maXJzdCwgYW5kIHJlY29yZCBzdGFydGVkLXZzLWNvbXBsZXRlZCBzbyBhIHN0b3BwZWQgc3dlZXAgaXMgdmlzaWJsZS4K' | base64 -d > /tmp/RELEASE_NOTES.md
+          gh release create v1.1.10 "build/app/outputs/flutter-apk/Lookout.apk" --target "$GITHUB_SHA" --title "Lookout 1.1.10 - App always opens; startup failures say why (includes all 1.1.9 fixes)" --notes-file /tmp/RELEASE_NOTES.md
