@@ -25,6 +25,33 @@ class CheckResult {
   const CheckResult(this.conditionMet, this.summary, {this.evaluated = true});
 }
 
+/// The outcome of one sweep over due agents.
+class CheckCycleResult {
+  /// Agents fully checked in this sweep.
+  final int checked;
+
+  /// Agents that were due when the sweep started.
+  final int totalDue;
+
+  /// True when the sweep stopped picking up new agents to stay inside its
+  /// time budget. Unchecked agents keep their past-due nextCheckAt and are
+  /// served by the next sweep, most overdue first.
+  final bool budgetExhausted;
+
+  /// True when another sweep was already running on this checker, so this
+  /// call did nothing. Overlapping sweeps would double every fetch and
+  /// every history line (the foreground ticker fires once a minute and
+  /// never awaited a slow sweep).
+  final bool skippedBusy;
+
+  const CheckCycleResult({
+    required this.checked,
+    required this.totalDue,
+    required this.budgetExhausted,
+    this.skippedBusy = false,
+  });
+}
+
 class AgentChecker {
   final AgentRepository repo;
   final LookoutNotifier notifier;
@@ -44,15 +71,47 @@ class AgentChecker {
        fetcher = fetcher ?? PageValueFetcher.fetchValue,
        strictFetcher = strictFetcher ?? DiscoveredSourceReader.fetch;
 
-  /// Background entry point: check every due active agent.
-  Future<int> checkDueAgents() async {
-    final due = await repo.dueAgents(now());
-    var checked = 0;
-    for (final agent in due) {
-      await checkAgent(agent);
-      checked++;
+  bool _cycleRunning = false;
+
+  /// Background entry point: check every due active agent, most overdue
+  /// first (repository order). Stops picking up new agents once
+  /// [timeBudget] is spent: Android stops any background worker after about
+  /// 10 minutes, and a sweep killed mid-write looks exactly like "the
+  /// worker never ran". A bounded sweep finishes, records what it did, and
+  /// leaves the rest due for the next cycle.
+  Future<CheckCycleResult> checkDueAgents({
+    Duration timeBudget = const Duration(minutes: 4),
+  }) async {
+    if (_cycleRunning) {
+      return const CheckCycleResult(
+        checked: 0,
+        totalDue: 0,
+        budgetExhausted: false,
+        skippedBusy: true,
+      );
     }
-    return checked;
+    _cycleRunning = true;
+    try {
+      final startedAt = now();
+      final due = await repo.dueAgents(startedAt);
+      var checked = 0;
+      var exhausted = false;
+      for (final agent in due) {
+        if (now().difference(startedAt) >= timeBudget) {
+          exhausted = true;
+          break;
+        }
+        await checkAgent(agent);
+        checked++;
+      }
+      return CheckCycleResult(
+        checked: checked,
+        totalDue: due.length,
+        budgetExhausted: exhausted,
+      );
+    } finally {
+      _cycleRunning = false;
+    }
   }
 
   /// One full check cycle for a single agent, with activity logging that
