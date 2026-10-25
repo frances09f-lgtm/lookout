@@ -50,8 +50,8 @@ jobs:
           test "$CERT_SHA" = '21e086dd5542df3c6f3cb10318e2508517edd28d91f5a388cc3fa79f2e74bdd4'
           "$AAPT" dump badging "$APK" | tee /tmp/badging.txt
           grep -F "package: name='com.ambi.lookout'" /tmp/badging.txt
-          grep -F "versionName='1.1.11'" /tmp/badging.txt
-          test "${{ github.run_number }}" -gt 166
+          grep -F "versionName='1.1.12'" /tmp/badging.txt
+          test "${{ github.run_number }}" -gt 173
           sha256sum "$APK"
       - uses: actions/upload-artifact@v4
         with:
@@ -62,5 +62,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo 'IyBMb29rb3V0IDEuMS4xMQoKIyMgRml4ZWQKLSBUaGUgd2F0Y2ggb24vb2ZmIHN3aXRjaCB3YXMgaGFyZCB0byByZWFkIGluIGRhcmsgdGhlbWU6IGEgd2hpdGUga25vYiBvbiBhIHBhbGUgdHJhY2sgd2FzaGVkIHRvZ2V0aGVyLiBUaGUgc3dpdGNoIG5vdyB1c2VzIHRoZSBzYW1lIGRlZXAgYWNjZW50IGl0IGhhcyBpbiBsaWdodCB0aGVtZSwgc28gb24gYW5kIG9mZiBhcmUgY2xlYXJseSBkaWZmZXJlbnQgaW4gYm90aCB0aGVtZXMuCgojIyBJbmNsdWRlcyBhbGwgb2YgMS4xLjEwCi0gQSBmYWlsaW5nIHN0YXJ0dXAgc3RlcCBub3cgc2F5cyBvbiBzY3JlZW4gd2hhdCBmYWlsZWQgaW5zdGVhZCBvZiBsZWF2aW5nIHRoZSBhcHAgb24gdGhlIGxvZ28uCi0gVGFzayBoaXN0b3J5IHJlbGlhYmlsaXR5LCB0aW1lLWJ1ZGdldGVkIGJhY2tncm91bmQgY2hlY2tzLCByZWFkYWJsZSB1cGRhdGUgZGlhbG9nLCBCaXRjb2luIHNvdXJjZSBkaXNjb3ZlcnkuCg==' | base64 -d > /tmp/RELEASE_NOTES.md
-          gh release create v1.1.11 "build/app/outputs/flutter-apk/Lookout.apk" --target "$GITHUB_SHA" --title "Lookout 1.1.11 - Readable watch switch in dark theme (includes all 1.1.10 fixes)" --notes-file /tmp/RELEASE_NOTES.md
+          echo 'IyBMb29rb3V0IDEuMS4xMgoKIyMgRml4ZWQKLSBXaGVuIGEgcHJvZHVjdCBwYWdlIHNheXMgYW4gaXRlbSBpcyBvdXQgb2Ygc3RvY2ssIEZpbmQgYSBzb3VyY2Ugbm93IHNheXMgc28gcGxhaW5seSBpbnN0ZWFkIG9mICJub3QgdmVyaWZpZWQiLgotIFBhZ2VzIHRoYXQgYnVuZGxlIHNlbGxlciBvZmZlcnMgaW50byBvbmUgcHJpY2UgYXJlIGRlc2NyaWJlZCBhY2N1cmF0ZWx5IGluc3RlYWQgb2YgInVuc3VwcG9ydGVkIG9mZmVyIHN0cnVjdHVyZSIsIGFuZCB0aGUgcmVwb3J0ZWQgb2ZmZXIgbm93IG5hbWVzIHRoZSBwcm9kdWN0IGluc3RlYWQgb2YgInZhcmlhbnQgbm90IHNwZWNpZmllZCIgd2hlbiB0aGVyZSBpcyBleGFjdGx5IG9uZS4KCiMjIENoZWNrcyB1bmNoYW5nZWQKLSBBIHdhdGNoIGlzIHN0aWxsIG9ubHkgY3JlYXRlZCBmcm9tIG9uZSBleGFjdCwgdmVyaWZpZWQsIGluLXN0b2NrIG9mZmVyIHdpdGggYSBuYW1lZCBjb3VudHJ5LiBOb3RoaW5nIHdhcyByZWxheGVkLgoKIyMgSW5jbHVkZXMgYWxsIG9mIDEuMS4xMQotIFJlYWRhYmxlIHdhdGNoIG9uL29mZiBzd2l0Y2ggaW4gZGFyayB0aGVtZTsgc3RhcnR1cCBmYWlsdXJlcyBzYXkgd2h5IG9uIHNjcmVlbi4K' | base64 -d > /tmp/RELEASE_NOTES.md
+          gh release create v1.1.12 "build/app/outputs/flutter-apk/Lookout.apk" --target "$GITHUB_SHA" --title "Lookout 1.1.12 - Plain out-of-stock and accurate offer messages (checks unchanged)" --notes-file /tmp/RELEASE_NOTES.md
