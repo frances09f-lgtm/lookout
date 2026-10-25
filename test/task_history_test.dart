@@ -10,6 +10,7 @@ import 'package:lookout/presentation/agent_details_screen.dart';
 import 'package:lookout/presentation/home_screen.dart';
 import 'package:lookout/services/checker.dart';
 import 'package:lookout/services/notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_common_ffi.dart';
 
 final at = DateTime(2026, 10, 15, 12);
@@ -37,6 +38,10 @@ void main() {
   setUpAll(() {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
+  });
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
   });
 
   for (final sqlite in [false, true]) {
