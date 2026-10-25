@@ -100,7 +100,10 @@ class SqfliteAgentRepository implements AgentRepository {
     // a busy timeout a read that races one of its writes fails instantly
     // with SQLITE_BUSY - which is how a history screen shows "Could not
     // load" while the data is fine. Wait briefly instead.
-    await db.execute('PRAGMA busy_timeout = 4000');
+    // rawQuery, not execute: this PRAGMA returns a row, and
+    // execSQL-backed execute() rejects row-returning statements on
+    // some Android versions - a throw here hangs startup on the logo.
+    await db.rawQuery('PRAGMA busy_timeout = 4000');
     return SqfliteAgentRepository._(db);
   }
 
