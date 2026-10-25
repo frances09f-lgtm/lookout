@@ -100,23 +100,89 @@ class _ActivityScreenState extends State<ActivityScreen> {
     },
   );
 
+  String _scheduleLine(Agent agent) {
+    final m = agent.checkInterval.inMinutes;
+    final every = m < 60
+        ? 'every $m min'
+        : (m % 60 == 0 ? 'every ${m ~/ 60} h' : 'every ${(m / 60).toStringAsFixed(1)} h');
+    final next = agent.nextCheckAt;
+    final nextLine = next == null
+        ? 'no check scheduled'
+        : (next.isAfter(DateTime.now())
+            ? 'next check scheduled for ${fmtHistoryTime(next)}'
+            : 'due for a check now');
+    return 'Checks $every · $nextLine';
+  }
+
   Widget _taskHistory(int id) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       FutureBuilder<Agent?>(
         key: ValueKey('history-label-$id'),
         future: _agent,
-        builder: (context, snap) => Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-          child: Text(
-            '${snap.data?.title ?? 'Task'} · #$id',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-        ),
+        builder: (context, snap) {
+          final agent = snap.data;
+          final scheme = Theme.of(context).colorScheme;
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${agent?.title ?? 'Task'} · #$id',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                if (agent != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    _scheduleLine(agent),
+                    style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
+      ),
+      FutureBuilder<List<String?>>(
+        key: ValueKey('history-last-run-$id'),
+        future: Future.wait([
+          widget.repo.getKv('lastBackgroundRunAt'),
+          widget.repo.getKv('lastBackgroundError'),
+        ]),
+        builder: (context, snap) {
+          final scheme = Theme.of(context).colorScheme;
+          final at = snap.hasData && snap.data![0] != null
+              ? DateTime.tryParse(snap.data![0]!)
+              : null;
+          // App-wide liveness: the worker serves every task, so this line
+          // says nothing about whether this particular watch was checked.
+          final line = at == null
+              ? 'Background worker has no recorded run yet (app-wide).'
+              : 'Background worker last ran: ${fmtHistoryTime(at)} (app-wide).';
+          final err = snap.hasData ? snap.data![1] : null;
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  line,
+                  style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                ),
+                if (err != null)
+                  Text(
+                    'Background worker error: $err',
+                    style: TextStyle(fontSize: 12, color: scheme.error),
+                  ),
+              ],
+            ),
+          );
+        },
       ),
       const Padding(
         padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        child: Text('Only this task’s recorded activity. One card per check.'),
+        child: Text('Only this task’s recorded activity. Each card is one check or update.'),
       ),
       Expanded(
         child: FutureBuilder<List<ActivityEntry>>(
@@ -141,14 +207,51 @@ class _ActivityScreenState extends State<ActivityScreen> {
               );
             }
             final cycles = groupHistoryCycles(items);
+            final interrupted = cycles.any((c) => c.looksInterrupted);
             return ListView.builder(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-              itemCount: cycles.length,
-              itemBuilder: (context, i) => CycleCard(cycle: cycles[i]),
+              itemCount: cycles.length + (interrupted ? 1 : 0),
+              itemBuilder: (context, i) {
+                if (interrupted && i == 0) {
+                  return const _InterruptedBanner();
+                }
+                final idx = interrupted ? i - 1 : i;
+                return CycleCard(cycle: cycles[idx]);
+              },
             );
           },
         ),
       ),
     ],
   );
+}
+
+class _InterruptedBanner extends StatelessWidget {
+  const _InterruptedBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: scheme.errorContainer.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.warning_amber_rounded, size: 18, color: scheme.error),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'A check started, but no result was recorded. '
+              'The reason is unknown.',
+              style: TextStyle(fontSize: 12, color: scheme.onSurface),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
