@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lookout/data/agent_repository.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:lookout/domain/agent.dart';
 import 'package:lookout/presentation/activity_screen.dart';
 import 'package:lookout/presentation/home_screen.dart';
@@ -8,6 +9,10 @@ import 'package:lookout/services/checker.dart';
 import 'package:lookout/services/notifications.dart';
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
   testWidgets('home renders empty state and summary', (tester) async {
     final repo = InMemoryAgentRepository();
     final checker = AgentChecker(repo: repo, notifier: RecordingNotifier());
