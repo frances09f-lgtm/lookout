@@ -142,7 +142,7 @@ void main() {
           messages.any((m) => m.startsWith('Next check scheduled')),
           false,
         );
-        expect(await checker.checkDueAgents(), 0);
+        expect((await checker.checkDueAgents()).checked, 0);
         expect(notifier.shown, isEmpty);
         await repo.updateAgent(
           (await repo.agentById(id))!.copyWith(currentValue: 61000),
