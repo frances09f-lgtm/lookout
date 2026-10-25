@@ -41,7 +41,7 @@ class _FeedClient extends http.BaseClient {
   _FeedClient(this.mode);
   final String mode; // 'update' | 'same' | 'fail'
   static const feedBody =
-      '{"lookout":{"version":"1.1.8","notes":"Fixes update dialog text that was unreadable in light theme. Includes 1.1.7: honest update checks - a failed check no longer looks like \\"No update available\\", and failed automatic checks retry in 15 minutes instead of 6 hours. Finds live market price sources (like Bitcoin) by itself - no link needed.","apk":"https://lookout-apk.pages.dev/Lookout-v1.1.8.apk"}}';
+      '{"lookout":{"version":"1.1.9","notes":"Background checks are now time-budgeted and recorded start-to-finish, so a long overnight queue can no longer die silently. Task history opens reliably and says why if it cannot. Includes 1.1.8: readable update dialog, honest update checks, Bitcoin source discovery.","apk":"https://lookout-apk.pages.dev/Lookout-v1.1.9.apk"}}';
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
@@ -109,8 +109,8 @@ void main() {
     await t.tap(find.text('Check for updates'));
     await t.pump();
     await t.pump(const Duration(milliseconds: 800));
-    expect(find.text('Lookout 1.1.8 is available'), findsOneWidget);
-    await t.runAsync(() => _shot(rootKey, 'v118-dialog-light-manual'));
+    expect(find.text('Lookout 1.1.9 is available'), findsOneWidget);
+    await t.runAsync(() => _shot(rootKey, 'v119-dialog-light-manual'));
     await t.tap(find.text('Later'));
     await t.pump();
     await t.pump(const Duration(milliseconds: 400));
@@ -126,8 +126,8 @@ void main() {
     await t.tap(find.text('auto'));
     await t.pump();
     await t.pump(const Duration(milliseconds: 800));
-    expect(find.text('Lookout 1.1.8 is available'), findsOneWidget);
-    await t.runAsync(() => _shot(rootKey, 'v118-dialog-dark-auto'));
+    expect(find.text('Lookout 1.1.9 is available'), findsOneWidget);
+    await t.runAsync(() => _shot(rootKey, 'v119-dialog-dark-auto'));
     await t.tap(find.text('Later'));
     await t.pump();
     await t.pump(const Duration(milliseconds: 400));
@@ -144,7 +144,7 @@ void main() {
     await t.pump(const Duration(milliseconds: 800));
     expect(find.text('Could not check for updates. Try again later.'),
         findsOneWidget);
-    await t.runAsync(() => _shot(rootKey, 'v117-manual-check-error'));
+    await t.runAsync(() => _shot(rootKey, 'v119-manual-check-error'));
     await t.pump(const Duration(seconds: 5));
     await t.pump(const Duration(milliseconds: 400));
 
@@ -153,13 +153,13 @@ void main() {
       theme: LookoutTheme.light(),
       label: 'Check for updates',
       onTap: (ctx) =>
-          checkUpdateManually(ctx, checker: _checker('same', '1.1.8')),
+          checkUpdateManually(ctx, checker: _checker('same', '1.1.9')),
     ));
     await t.tap(find.text('Check for updates'));
     await t.pump();
     await t.pump(const Duration(milliseconds: 800));
     expect(find.text('No update available'), findsOneWidget);
-    await t.runAsync(() => _shot(rootKey, 'v117-manual-check-none'));
+    await t.runAsync(() => _shot(rootKey, 'v119-manual-check-none'));
     await t.pump(const Duration(seconds: 5));
     await t.pump(const Duration(milliseconds: 400));
 
@@ -216,7 +216,7 @@ void main() {
     print('DISCOVERY UI: coingecko='
         '${find.textContaining('coingecko').evaluate().isNotEmpty} coinbase='
         '${find.textContaining('coinbase').evaluate().isNotEmpty}');
-    await t.runAsync(() => _shot(rootKey, 'v117-bitcoin-discovery-review'));
+    await t.runAsync(() => _shot(rootKey, 'v119-bitcoin-discovery-review'));
     expect(t.takeException(), isNull);
   }, timeout: const Timeout(Duration(minutes: 5)));
 }
