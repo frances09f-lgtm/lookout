@@ -19,12 +19,27 @@ const kAppName = 'Lookout';
 const kUpdateRepo = 'frances09f-lgtm/lookout';
 // Feed mode (for apps whose source repo is private): public JSON file with
 // {"<kFeedKey>": {"version": "...", "notes": "...", "apk": "..."}}.
-const kUpdateFeedUrl = ''; // empty = GitHub releases mode
-const kFeedKey = '';
+const kUpdateFeedUrl = 'https://lookout-apk.pages.dev/update.json';
+const kFeedKey = 'lookout';
 // -------------------------------------------------------------------------
 
 const kAutoCheckInterval = Duration(hours: 6);
+
+/// After a FAILED check, retry this soon instead of hiding updates for the
+/// full auto interval. One network blip must not silence updates for 6h.
+const kAutoCheckRetryAfterFailure = Duration(minutes: 15);
 const _kLastCheckKey = 'app_update_last_check_ms';
+
+/// Outcome of one update check: [update] set means a newer version exists;
+/// [failed] means the check itself did not complete (network, rate limit,
+/// malformed feed) and says nothing about whether an update exists.
+class UpdateCheck {
+  final UpdateInfo? update;
+  final bool failed;
+  const UpdateCheck.update(this.update) : failed = false;
+  const UpdateCheck.none() : update = null, failed = false;
+  const UpdateCheck.failure() : update = null, failed = true;
+}
 
 class UpdateInfo {
   final String version;
@@ -129,18 +144,47 @@ class UpdateChecker {
     await _channel.invokeMethod<void>('installApk', {'path': path});
   }
 
-  /// Latest release info, or null when there is nothing newer or the check
-  /// fails (offline, rate limit): callers treat null as "no update".
+  /// Latest release info, or null when there is nothing newer.
+  /// Throws are collapsed into [UpdateCheck.failure] by [checkLatest]; this
+  /// wrapper keeps the legacy nullable contract for existing callers.
   Future<UpdateInfo?> fetchLatest() async {
+    final r = await checkLatest();
+    return r.update;
+  }
+
+  /// One honest check. Feed mode is primary (no GitHub rate limits); a feed
+  /// failure falls back to GitHub releases. A newer version reported by a
+  /// stale feed is impossible to miss: the feed is published only after its
+  /// APK is live, so feed version >= any earlier release.
+  Future<UpdateCheck> checkLatest() async {
+    Object? info;
+    if (kUpdateFeedUrl.isNotEmpty) {
+      info = await _attempt(_fetchFromFeed);
+      if (identical(info, _kFailed)) {
+        // Feed unreachable/malformed: preserve the GitHub path.
+        info = await _attempt(_fetchFromGithub);
+      }
+    } else {
+      info = await _attempt(_fetchFromGithub);
+    }
+    if (identical(info, _kFailed)) return const UpdateCheck.failure();
+    if (info == null) return const UpdateCheck.none();
+    final update = info as UpdateInfo;
+    final current = await _currentVersion();
+    return compareVersions(update.version, current) > 0
+        ? UpdateCheck.update(update)
+        : const UpdateCheck.none();
+  }
+
+  static final _kFailed = Object();
+
+  /// null = source answered but carries no usable release; _kFailed = the
+  /// check itself did not complete.
+  Future<dynamic> _attempt(Future<UpdateInfo?> Function() fetch) async {
     try {
-      final info = kUpdateFeedUrl.isNotEmpty
-          ? await _fetchFromFeed()
-          : await _fetchFromGithub();
-      if (info == null) return null;
-      final current = await _currentVersion();
-      return compareVersions(info.version, current) > 0 ? info : null;
+      return await fetch();
     } catch (_) {
-      return null;
+      return _kFailed;
     }
   }
 
@@ -156,10 +200,12 @@ class UpdateChecker {
           },
         )
         .timeout(const Duration(seconds: 8));
-    if (res.statusCode != 200) return null;
+    if (res.statusCode != 200) {
+      throw StateError('github releases status ${res.statusCode}');
+    }
     final j = jsonDecode(res.body) as Map<String, dynamic>;
     final tag = (j['tag_name'] as String? ?? '').trim();
-    if (tag.isEmpty) return null;
+    if (tag.isEmpty) throw StateError('github release has no tag');
     String? apk;
     for (final a in (j['assets'] as List? ?? const [])) {
       final name = (a as Map)['name'] as String? ?? '';
@@ -168,7 +214,7 @@ class UpdateChecker {
         break;
       }
     }
-    if (apk == null) return null;
+    if (apk == null) throw StateError('github release has no apk asset');
     return UpdateInfo(
       version: tag.replaceFirst(RegExp(r'^[vV]'), ''),
       notes: (j['body'] as String? ?? '').trim(),
@@ -183,13 +229,17 @@ class UpdateChecker {
           headers: {'User-Agent': '$kAppName-app'},
         )
         .timeout(const Duration(seconds: 8));
-    if (res.statusCode != 200) return null;
+    if (res.statusCode != 200) {
+      throw StateError('update feed status ${res.statusCode}');
+    }
     final j = jsonDecode(res.body) as Map<String, dynamic>;
     final e = j[kFeedKey];
-    if (e is! Map) return null;
+    if (e is! Map) throw StateError('update feed missing "$kFeedKey"');
     final v = (e['version'] as String? ?? '').trim();
     final apk = (e['apk'] as String? ?? '').trim();
-    if (v.isEmpty || apk.isEmpty) return null;
+    if (v.isEmpty || apk.isEmpty || !apk.startsWith('https://')) {
+      throw StateError('update feed entry malformed');
+    }
     return UpdateInfo(
       version: v,
       notes: (e['notes'] as String? ?? '').trim(),
@@ -205,10 +255,18 @@ class UpdateChecker {
         kAutoCheckInterval.inMilliseconds) {
       return null;
     }
-    final info = await fetchLatest();
-    // Stamp even failures so an offline stretch does not poll every launch.
-    await prefs.setInt(_kLastCheckKey, _clock().millisecondsSinceEpoch);
-    return info;
+    final result = await checkLatest();
+    // A completed check (update or up-to-date) earns the full interval. A
+    // failed check gets only a short backoff: an offline stretch does not
+    // poll every launch, but one blip never hides an update for 6h.
+    final stamp = _clock().millisecondsSinceEpoch;
+    await prefs.setInt(
+      _kLastCheckKey,
+      result.failed
+          ? stamp - (kAutoCheckInterval - kAutoCheckRetryAfterFailure).inMilliseconds
+          : stamp,
+    );
+    return result.update;
   }
 
   /// Download the APK to the cache dir with byte progress.
@@ -291,8 +349,17 @@ Future<void> checkUpdateManually(
 }) async {
   if (Platform.environment['FLUTTER_TEST'] == 'true') return;
   final c = checker ?? UpdateChecker();
-  final info = await c.fetchLatest();
+  final result = await c.checkLatest();
   if (!context.mounted) return;
+  if (result.failed) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Could not check for updates. Try again later.'),
+      ),
+    );
+    return;
+  }
+  final info = result.update;
   if (info == null) {
     ScaffoldMessenger.of(
       context,
