@@ -715,11 +715,24 @@ class SourceCandidateValidator {
     final missingCountry = <String>[];
     for (var i = 0; i < offers.length && i < 12; i++) {
       final offer = offers[i];
-      if (offer is! Map || offer['@type'] != 'Offer') {
-        blockers.add('Offer ${i + 1}: unsupported offer structure.');
+      final label = 'Offer ${i + 1}';
+      if (offer is! Map) {
+        blockers.add('$label: unsupported offer structure.');
         continue;
       }
-      final label = 'Offer ${i + 1}';
+      final offerType = offer['@type']?.toString();
+      if (offerType != 'Offer' && offerType != 'AggregateOffer') {
+        blockers.add('$label: unsupported offer structure.');
+        continue;
+      }
+      // Aggregate offers bundle sellers/variants. They are read for an honest
+      // report but can never be the one exact verified offer.
+      final isAggregate = offerType == 'AggregateOffer';
+      if (isAggregate) {
+        blockers.add(
+          '$label: the page aggregates seller offers instead of naming one exact offer.',
+        );
+      }
       final region = offer['eligibleRegion'];
       final regionCode = region is Map
           ? region['name']?.toString()
@@ -731,19 +744,31 @@ class SourceCandidateValidator {
           '$label: eligible country does not match ${spec.country}.',
         );
       }
-      final price = double.tryParse(offer['price']?.toString() ?? '');
+      final price = double.tryParse(
+        (offer['price'] ?? offer['lowPrice'])?.toString() ?? '',
+      );
       if (price == null || !price.isFinite || price <= 0) {
         blockers.add('$label: no valid price.');
       }
       if (offer['priceCurrency'] != spec.currency) {
         blockers.add('$label: currency does not match ${spec.currency}.');
       }
-      final stock = offer['availability']?.toString() ?? '';
-      if (![
+      // Affirmative out-of-stock is reported as such; anything that is not an
+      // explicitly verified in-stock value stays unverified. The schema URL
+      // is matched case-insensitively for the out-of-stock report only -
+      // retailers emit it with inconsistent casing ("OutofStock").
+      final stockRaw = offer['availability']?.toString() ?? '';
+      final stockNorm = stockRaw
+          .replaceFirst(RegExp(r'^https?://schema\.org/'), '')
+          .toLowerCase();
+      final offerCount = int.tryParse(offer['offerCount']?.toString() ?? '');
+      if (stockNorm == 'outofstock' || (isAggregate && offerCount == 0)) {
+        blockers.add('$label: the page reports this offer out of stock.');
+      } else if (![
         'https://schema.org/InStock',
         'http://schema.org/InStock',
         'InStock',
-      ].contains(stock)) {
+      ].contains(stockRaw)) {
         blockers.add('$label: in-stock availability is not verified.');
       }
       final condition = offer['itemCondition']?.toString();
@@ -752,9 +777,16 @@ class SourceCandidateValidator {
           condition != 'NewCondition') {
         blockers.add('$label: not a verified new-condition offer.');
       }
-      // Report exactly what is present, not a selected/current price or variant.
+      // Report exactly what is present, not a selected/current price or
+      // variant. Exactly one product with exactly one offer: the offer is
+      // unambiguously for that product, so its label is the product name.
+      // Anything more ambiguous stays "variant not specified".
+      final variant =
+          offer['name']?.toString() ??
+          (offers.length == 1 ? name : null) ??
+          'variant not specified';
       reports.add(
-        '$label: ${offer['name'] ?? 'variant not specified'}; '
+        '$label: $variant; '
         '${price != null && price.isFinite && price > 0 ? '${offer['priceCurrency'] ?? 'currency missing'} ${price.toStringAsFixed(2)}' : 'price missing'}',
       );
     }
