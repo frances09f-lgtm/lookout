@@ -23,6 +23,11 @@ class DiscoverySpec {
   final String currency;
   final String? reviewedProduct;
   final String? colour;
+
+  /// Persisted only after a reviewed deterministic-provider quote candidate
+  /// is activated; routes later reads to quote validation, never to relax
+  /// arbitrary pages.
+  final bool marketQuote;
   const DiscoverySpec({
     required this.model,
     this.kind = 'productPrice',
@@ -34,6 +39,7 @@ class DiscoverySpec {
     required this.currency,
     this.reviewedProduct,
     this.colour,
+    this.marketQuote = false,
   });
   String encode() => jsonEncode({
     'model': model,
@@ -44,6 +50,7 @@ class DiscoverySpec {
     'currency': currency,
     'reviewedProduct': reviewedProduct,
     'colour': colour,
+    'marketQuote': marketQuote,
   });
   static DiscoverySpec forAgent(Agent agent) {
     final data = jsonDecode(agent.sourceIdentity!) as Map;
@@ -58,17 +65,24 @@ class DiscoverySpec {
       currency: data['currency'] as String,
       reviewedProduct: data['reviewedProduct'] as String?,
       colour: data['colour'] as String?,
+      marketQuote: data['marketQuote'] as bool? ?? false,
     );
   }
 
   bool get isText => kind == 'textPresence';
-  String get query => isText
-      ? '$model official'
-      : '$model ${colour ?? ''} ${storageGb > 0 ? '${storageGb}GB' : ''} ${country == 'IN'
-            ? 'India'
-            : country == 'US'
-            ? 'United States'
-            : country} buy';
+  String get query {
+    if (isText) return '$model official';
+    if (storageGb == 0 && colour == null) {
+      // Region-free subjects (market quotes, instruments): a commerce-shaped
+      // "buy" query buries live price pages under SEO/news results.
+      return '$model price $currency';
+    }
+    return '$model ${colour ?? ''} ${storageGb > 0 ? '${storageGb}GB' : ''} ${country == 'IN'
+          ? 'India'
+          : country == 'US'
+          ? 'United States'
+          : country} buy';
+  }
 }
 
 class TaskClarification {
@@ -121,14 +135,6 @@ class DiscoveryTaskParser {
       return const TaskClarification(null, [TicketTaskPolicy.limitation]);
     }
     final q = <String>[];
-    if (!RegExp(
-      r'\b(price|cheaper|cost|costlier|buy|product)\b',
-      caseSensitive: false,
-    ).hasMatch(task)) {
-      return const TaskClarification(null, [
-        'This task needs a dedicated evaluator. This prototype supports exact product prices and public-page text: check <subject> contains “exact phrase”. It cannot interpret arbitrary outcomes or monitor private accounts.',
-      ]);
-    }
     final colours = RegExp(
       r'\b(natural titanium|blue titanium|white titanium|black titanium|desert titanium|space black|cosmic orange|deep blue|mist blue|black|blue|green|pink|yellow|white|teal|ultramarine|silver|lavender|sage)\b',
       caseSensitive: false,
@@ -329,6 +335,7 @@ class SourceCandidate {
   final String currency;
   final String country;
   final DateTime checkedAt;
+  final bool marketQuote;
   String get readingLabel => currency.isEmpty
       ? (price == 1
             ? 'Exact phrase present on this page'
@@ -341,6 +348,7 @@ class SourceCandidate {
     required this.currency,
     required this.country,
     required this.checkedAt,
+    this.marketQuote = false,
   });
 }
 
@@ -492,7 +500,8 @@ class SourceCandidateValidator {
             spec.reviewedProduct!.toLowerCase().trim()) {
       return null;
     }
-    final productUrl = Uri.tryParse(p['url']?.toString() ?? '');
+    final rawProductUrl = p['url']?.toString() ?? '';
+    final productUrl = Uri.tryParse(rawProductUrl);
     if (productUrl == null ||
         !productUrl.hasScheme ||
         productUrl.host != page.finalUrl.host ||
@@ -536,6 +545,82 @@ class SourceCandidateValidator {
       currency: spec.currency,
       country: spec.country,
       checkedAt: now ?? DateTime.now(),
+    );
+  }
+
+  /// Region-free live market quotes (crypto/FX/instrument pages). Used only
+  /// for deterministic provider leads and persisted quote watches - never to
+  /// relax a search hit. Identity, currency and a live structured price are
+  /// still proven; seller/region semantics simply do not exist on these
+  /// pages, and a moving price between review reads is expected.
+  static SourceCandidate? validateQuote(
+    DiscoverySpec spec,
+    ProductPage page, {
+    DateTime? now,
+  }) {
+    if (spec.kind != 'productPrice' || spec.storageGb != 0 || spec.colour != null) {
+      return null;
+    }
+    if (page.status != 200 ||
+        !publicHttps(page.finalUrl) ||
+        page.body.length > 2000000) {
+      return null;
+    }
+    final doc = html.parse(page.body);
+    final products = <Map>[];
+    void collect(dynamic node) {
+      if (node is List) {
+        for (final n in node) {
+          collect(n);
+        }
+      }
+      if (node is Map) {
+        final t = node['@type'];
+        if (t == 'Product' || t is List && t.contains('Product')) {
+          products.add(node);
+        }
+        if (node['@graph'] != null) collect(node['@graph']);
+      }
+    }
+
+    for (final script in doc.querySelectorAll(
+      'script[type="application/ld+json"]',
+    )) {
+      try {
+        collect(jsonDecode(script.text));
+      } catch (_) {
+        /* malformed is not evidence */
+      }
+    }
+    if (products.length != 1) return null;
+    final p = products.single;
+    final name = p['name']?.toString() ?? '';
+    if (!DiscoveryTaskParser.identityMatches(name, spec)) return null;
+    final offers = p['offers'] is List ? p['offers'] as List : [p['offers']];
+    if (offers.length != 1 || offers.single is! Map) return null;
+    final o = offers.single as Map;
+    if (o['@type'] != 'Offer' || o['priceCurrency'] != spec.currency) {
+      return null;
+    }
+    final availability = o['availability']?.toString();
+    if (availability != null &&
+        ![
+          'https://schema.org/InStock',
+          'http://schema.org/InStock',
+          'InStock',
+        ].contains(availability)) {
+      return null;
+    }
+    final price = double.tryParse(o['price']?.toString() ?? '');
+    if (price == null || !price.isFinite || price <= 0) return null;
+    return SourceCandidate(
+      url: page.finalUrl,
+      product: name,
+      price: price,
+      currency: spec.currency,
+      country: spec.country,
+      checkedAt: now ?? DateTime.now(),
+      marketQuote: true,
     );
   }
 
@@ -722,10 +807,12 @@ class SourceDiscoveryService {
           .read(selected.url)
           .timeout(const Duration(seconds: 8));
       if (page.finalUrl != selected.url) return null;
-      final fresh = SourceCandidateValidator.validate(spec, page, now: time);
+      final fresh = selected.marketQuote
+          ? SourceCandidateValidator.validateQuote(spec, page, now: time)
+          : SourceCandidateValidator.validate(spec, page, now: time);
       if (fresh == null ||
           fresh.product != selected.product ||
-          fresh.price != selected.price ||
+          (!selected.marketQuote && fresh.price != selected.price) ||
           fresh.country != selected.country ||
           fresh.currency != selected.currency) {
         return null;
@@ -744,26 +831,75 @@ class SourceDiscoveryService {
       final hits = <SourceCandidate>[];
       final review = <ReviewOnlySource>[];
       final seen = <String>{};
-      for (final link in links.take(5)) {
-        if (!SourceCandidateValidator.publicHttps(link.url) ||
-            !seen.add(link.url.toString())) {
-          continue;
+      final candidates = links
+          .where(
+            (link) =>
+                SourceCandidateValidator.publicHttps(link.url) &&
+                seen.add(link.url.toString()),
+          )
+          .take(8);
+      final pages = await Future.wait(
+        candidates.map((link) async {
+          try {
+            return await pageReader
+                .read(link.url)
+                .timeout(const Duration(seconds: 8));
+          } catch (_) {
+            /* blocked/unreadable page isn't a candidate */
+            return null;
+          }
+        }),
+      );
+      for (final page in pages.whereType<ProductPage>()) {
+        final match = SourceCandidateValidator.validate(spec, page);
+        if (match != null && !hits.any((h) => h.url == match.url)) {
+          hits.add(match);
+        } else if (match == null) {
+          final lead = SourceCandidateValidator.reviewOnly(spec, page);
+          if (lead != null && !review.any((h) => h.url == lead.url)) {
+            review.add(lead);
+          }
         }
-        try {
-          final page = await pageReader
-              .read(link.url)
-              .timeout(const Duration(seconds: 8));
-          final match = SourceCandidateValidator.validate(spec, page);
-          if (match != null && !hits.any((h) => h.url == match.url)) {
-            hits.add(match);
-          } else if (match == null) {
-            final lead = SourceCandidateValidator.reviewOnly(spec, page);
-            if (lead != null && !review.any((h) => h.url == lead.url)) {
-              review.add(lead);
+      }
+      // Quote subjects: search ranks SEO/news above the structured quote
+      // pages the validator can prove. Deterministic provider leads are not
+      // evidence - each is read and passes the same strict validation
+      // (identity, currency, live structured price) before it is offered.
+      if (hits.isEmpty &&
+          !spec.isText &&
+          spec.storageGb == 0 &&
+          spec.colour == null) {
+        final slug = spec.model
+            .toLowerCase()
+            .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+            .replaceAll(RegExp(r'^-+|-+$'), '');
+        if (slug.isNotEmpty) {
+          final currencyPath =
+              spec.currency == 'USD' ? '' : '/${spec.currency.toLowerCase()}';
+          final leads = <Uri>[
+            Uri.parse(
+              'https://www.coingecko.com/en/coins/$slug$currencyPath',
+            ),
+            if (spec.currency == 'USD')
+              Uri.parse('https://www.coinbase.com/price/$slug'),
+          ];
+          final leadPages = await Future.wait(
+            leads.map((url) async {
+              try {
+                return await pageReader
+                    .read(url)
+                    .timeout(const Duration(seconds: 8));
+              } catch (_) {
+                return null;
+              }
+            }),
+          );
+          for (final page in leadPages.whereType<ProductPage>()) {
+            final match = SourceCandidateValidator.validateQuote(spec, page);
+            if (match != null && !hits.any((h) => h.url == match.url)) {
+              hits.add(match);
             }
           }
-        } catch (_) {
-          /* blocked/unreadable page isn't a candidate */
         }
       }
       return DiscoveryResult(
@@ -803,7 +939,7 @@ class TavilyKeylessSearch implements SourceSearchProvider {
       request.write(
         jsonEncode({
           'query': spec.query,
-          'max_results': 5,
+          'max_results': 8,
           'search_depth': 'basic',
         }),
       );
@@ -967,7 +1103,9 @@ class DiscoveredSourceReader {
           'The saved source address changed; review it again',
         );
       }
-      final value = SourceCandidateValidator.validate(spec, page);
+      final value = spec.marketQuote
+          ? SourceCandidateValidator.validateQuote(spec, page)
+          : SourceCandidateValidator.validate(spec, page);
       if (value == null) {
         return FetchOutcome.failed(
           'The reviewed source and current evidence could not be verified on its page',
