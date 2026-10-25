@@ -59,6 +59,10 @@ Widget xSwitch({
   required bool value,
   required Color accent,
   required ValueChanged<bool> onChanged,
+  // Dark-mode active track. A light pastel track with a white thumb reads
+  // washed out on a dark panel; the deep accent keeps on/off distinct, the
+  // same pairing light mode already uses.
+  Color? accentDark,
 }) {
   return Transform.scale(
     scale: 1.12,
@@ -67,7 +71,8 @@ Widget xSwitch({
         value: value,
         onChanged: onChanged,
         activeThumbColor: Colors.white,
-        activeTrackColor: accent,
+        activeTrackColor:
+            xIsDark(context) && accentDark != null ? accentDark : accent,
         inactiveThumbColor: xInkSoft(context),
         inactiveTrackColor: xTrack(context),
         trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
