@@ -91,14 +91,26 @@ class InMemoryAgentRepository implements AgentRepository {
   }
 
   @override
-  Future<List<Agent>> dueAgents(DateTime now) async => _agents
-      .where(
-        (a) =>
-            a.status == AgentStatus.active &&
-            !a.needsSourceResolution &&
-            (a.nextCheckAt == null || !a.nextCheckAt!.isAfter(now)),
-      )
-      .toList();
+  Future<List<Agent>> dueAgents(DateTime now) async {
+    // Never-checked (no nextCheckAt) first, then most overdue first, so a
+    // time-budgeted sweep serves the longest-waiting tasks first.
+    final list = _agents
+        .where(
+          (a) =>
+              a.status == AgentStatus.active &&
+              !a.needsSourceResolution &&
+              (a.nextCheckAt == null || !a.nextCheckAt!.isAfter(now)),
+        )
+        .toList();
+    list.sort((a, b) {
+      final na = a.nextCheckAt, nb = b.nextCheckAt;
+      if (na == null && nb == null) return 0;
+      if (na == null) return -1;
+      if (nb == null) return 1;
+      return na.compareTo(nb);
+    });
+    return list;
+  }
 
   @override
   Future<void> logActivity(int agentId, String message, DateTime at) async {
