@@ -50,8 +50,8 @@ jobs:
           test "$CERT_SHA" = '21e086dd5542df3c6f3cb10318e2508517edd28d91f5a388cc3fa79f2e74bdd4'
           "$AAPT" dump badging "$APK" | tee /tmp/badging.txt
           grep -F "package: name='com.ambi.lookout'" /tmp/badging.txt
-          grep -F "versionName='1.1.7'" /tmp/badging.txt
-          test "${{ github.run_number }}" -gt 93
+          grep -F "versionName='1.1.8'" /tmp/badging.txt
+          test "${{ github.run_number }}" -gt 106
           sha256sum "$APK"
       - uses: actions/upload-artifact@v4
         with:
@@ -62,5 +62,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo 'IyBMb29rb3V0IDEuMS43CgojIyBGaXhlZAotIFVwZGF0ZSBjaGVja3Mgbm8gbG9uZ2VyIHJlcG9ydCAiTm8gdXBkYXRlIGF2YWlsYWJsZSIgd2hlbiB0aGUgY2hlY2sgaXRzZWxmIGZhaWxlZCAobmV0d29yayBlcnJvciwgcmF0ZSBsaW1pdCkuIFRoZSBhcHAgbm93IHNheXMgaXQgY291bGQgbm90IGNoZWNrLCBhbmQgdG8gdHJ5IGFnYWluLgotIEEgZmFpbGVkIGF1dG9tYXRpYyBjaGVjayByZXRyaWVzIGluIDE1IG1pbnV0ZXMgaW5zdGVhZCBvZiBoaWRpbmcgdXBkYXRlcyBmb3IgNiBob3Vycy4KLSAiRmluZCBwcm9kdWN0IHNvdXJjZSIgbm93IHdvcmtzIGZvciBsaXZlIG1hcmtldCBwcmljZXMgbGlrZSBCaXRjb2luOiAid2F0Y2ggYml0Y29pbiB1bmRlciAkOTAwMDAiIGZpbmRzIGFuZCB2ZXJpZmllcyBhIHJlYWwgcHJpY2Ugc291cmNlIGJ5IGl0c2VsZiAoQ29pbkdlY2tvIG9yIENvaW5iYXNlKSBpbnN0ZWFkIG9mIGFza2luZyBmb3IgYSBsaW5rLiBOYXR1cmFsIHBocmFzaW5ncyBsaWtlICJ1bmRlciAkOTAwMDAiIG9yICJhYm92ZSA3MDAwMCIgYXJlIHVuZGVyc3Rvb2QuCgojIyBDaGFuZ2VkCi0gVXBkYXRlIGNoZWNrcyB1c2UgYSBsaWdodHdlaWdodCB1cGRhdGUgZmVlZCBmaXJzdCAobm8gR2l0SHViIHJhdGUgbGltaXRzKSwgZmFsbGluZyBiYWNrIHRvIEdpdEh1YiByZWxlYXNlcyBhdXRvbWF0aWNhbGx5Lgo=' | base64 -d > /tmp/RELEASE_NOTES.md
-          gh release create v1.1.7 "build/app/outputs/flutter-apk/Lookout.apk" --target "$GITHUB_SHA" --title "Lookout 1.1.7 - Honest update checks and Bitcoin source discovery" --notes-file /tmp/RELEASE_NOTES.md
+          echo 'IyBMb29rb3V0IDEuMS44CgojIyBGaXhlZAotIFVwZGF0ZSBkaWFsb2cgdGV4dCB3YXMgdW5yZWFkYWJsZSBpbiBsaWdodCB0aGVtZSAoZGFyayB0ZXh0IG9uIHRoZSBkYXJrIHBhbmVsKS4gVGl0bGUsICJXaGF0J3MgbmV3IiwgYW5kIHRoZSBMYXRlci9VcGRhdGUgYnV0dG9ucyBhcmUgbm93IHJlYWRhYmxlIGluIGJvdGggbGlnaHQgYW5kIGRhcmsgdGhlbWVzLgoKIyMgSW5jbHVkZXMgYWxsIG9mIDEuMS43Ci0gVXBkYXRlIGNoZWNrcyBubyBsb25nZXIgcmVwb3J0ICJObyB1cGRhdGUgYXZhaWxhYmxlIiB3aGVuIHRoZSBjaGVjayBpdHNlbGYgZmFpbGVkIChuZXR3b3JrIGVycm9yLCByYXRlIGxpbWl0KS4gVGhlIGFwcCBub3cgc2F5cyBpdCBjb3VsZCBub3QgY2hlY2ssIGFuZCB0byB0cnkgYWdhaW4uCi0gQSBmYWlsZWQgYXV0b21hdGljIGNoZWNrIHJldHJpZXMgaW4gMTUgbWludXRlcyBpbnN0ZWFkIG9mIGhpZGluZyB1cGRhdGVzIGZvciA2IGhvdXJzLgotICJGaW5kIHByb2R1Y3Qgc291cmNlIiBub3cgd29ya3MgZm9yIGxpdmUgbWFya2V0IHByaWNlcyBsaWtlIEJpdGNvaW46ICJ3YXRjaCBiaXRjb2luIHVuZGVyICQ5MDAwMCIgZmluZHMgYW5kIHZlcmlmaWVzIGEgcmVhbCBwcmljZSBzb3VyY2UgYnkgaXRzZWxmIChDb2luR2Vja28gb3IgQ29pbmJhc2UpIGluc3RlYWQgb2YgYXNraW5nIGZvciBhIGxpbmsuIE5hdHVyYWwgcGhyYXNpbmdzIGxpa2UgInVuZGVyICQ5MDAwMCIgb3IgImFib3ZlIDcwMDAwIiBhcmUgdW5kZXJzdG9vZC4KLSBVcGRhdGUgY2hlY2tzIHVzZSBhIGxpZ2h0d2VpZ2h0IHVwZGF0ZSBmZWVkIGZpcnN0IChubyBHaXRIdWIgcmF0ZSBsaW1pdHMpLCBmYWxsaW5nIGJhY2sgdG8gR2l0SHViIHJlbGVhc2VzIGF1dG9tYXRpY2FsbHkuCg==' | base64 -d > /tmp/RELEASE_NOTES.md
+          gh release create v1.1.8 "build/app/outputs/flutter-apk/Lookout.apk" --target "$GITHUB_SHA" --title "Lookout 1.1.8 - Readable update dialog in light theme (includes all 1.1.7 fixes)" --notes-file /tmp/RELEASE_NOTES.md
