@@ -136,6 +136,7 @@ class _SourceReviewScreenState extends State<SourceReviewScreen> {
           country: spec.country,
           currency: spec.currency,
           colour: spec.colour,
+          marketQuote: fresh.marketQuote,
         ),
         fresh,
       ),
