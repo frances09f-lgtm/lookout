@@ -73,6 +73,7 @@ class GoalParser {
     r'(?:₹|\$|rs\.?|inr)?\s*([0-9][0-9,]*(?:\.\d+)?)',
     caseSensitive: false,
   );
+
   static final _duration = RegExp(
     r'\bin\s+(\d+)\s*(minute|minutes|min|hour|hours|hr|hrs|day|days)\b',
     caseSensitive: false,
@@ -88,6 +89,7 @@ class GoalParser {
     r'go(?:es)?\s+(?:below|above|under|over)|rises?\s+(?:above|over)|'
     r'crosses?|reaches?|comes?\s+(?:below|under)|down\s+to|'
     r'target\s*(?:of|is)?|limit\s*(?:of|is)?|'
+    r'exceeds?|surpasses?|'
     r'(?:alert|notify|tell)\s+(?:me\s+)?at)\s*(?:₹|\$|rs\.?|inr|usd)?\s*([0-9][0-9,]*(?:\.\d+)?)',
     caseSensitive: false,
   );
@@ -107,6 +109,7 @@ class GoalParser {
     'monitor this page',
     'watch this page',
   ];
+
   static const _priceWords = [
     'cheaper',
     'price',
@@ -131,7 +134,10 @@ class GoalParser {
     'above ₹',
     'above rs',
     'ticket',
+    'exceeds',
+    'surpasses',
   ];
+
   static const _remindWords = ['remind', 'reminder', "hasn't been completed"];
 
   static ParseOutcome parseOutcome(String input) => parse(input).outcome;
@@ -154,6 +160,7 @@ class GoalParser {
   static ParsedGoal parse(String raw) {
     final input = raw.trim();
     if (input.isEmpty) return ParsedGoal.unclear();
+
     final lower = input.toLowerCase();
 
     // Explicit literal text checks on a reviewed public page; no semantic inference.
@@ -168,17 +175,21 @@ class GoalParser {
         target: .5,
       );
     }
+
     // 1. Price/value watch (a page link turns it into an auto-fetching watch).
     if (_priceWords.any(lower.contains)) {
       final cleaned = lower.replaceAll(',', '');
       final cm = _conditionNumber.firstMatch(cleaned);
+
       // Never fall back to "the first number in the text": that is how a
       // digit in the watched thing's own name ("Jolly LLB 3", "iPhone 16")
       // once became the target. No comparison number, no watch - ask the
       // user for a real threshold.
       if (cm == null) return ParsedGoal.unclear();
+
       final target = double.tryParse(cm.group(1)!);
       if (target == null) return ParsedGoal.unclear();
+
       final above =
           lower.contains('goes above') ||
           lower.contains('rises above') ||
@@ -188,7 +199,10 @@ class GoalParser {
           lower.contains('above rs') ||
           lower.contains('above \$') ||
           lower.contains('over \$') ||
+          lower.contains('exceeds') ||
+          lower.contains('surpasses') ||
           RegExp(r'\b(?:above|over)\b').hasMatch(lower);
+
       return ParsedGoal.ok(
         title: _title(input),
         type: AgentType.valueWatch,
