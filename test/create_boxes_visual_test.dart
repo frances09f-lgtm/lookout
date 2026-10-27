@@ -153,7 +153,7 @@ void main() {
     expect(t.takeException(), isNull);
   });
 
-  testWidgets('amazon links are blocked from testing as unreliable', (t) async {
+  testWidgets('amazon links are tested through the EMI-safe path', (t) async {
     await t.binding.setSurfaceSize(const Size(390, 2400));
     addTearDown(() => t.binding.setSurfaceSize(null));
     final repo = InMemoryAgentRepository();
@@ -175,12 +175,12 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.text('Test link'));
     await t.pumpAndSettle();
-    expect(fetchCalled, isFalse);
+    expect(fetchCalled, isTrue);
+    expect(find.textContaining('Read 12023'), findsOneWidget);
     expect(
       find.textContaining('Amazon pages cannot be tested reliably'),
-      findsOneWidget,
+      findsNothing,
     );
-    expect(find.textContaining('EMI amount'), findsOneWidget);
     expect(t.takeException(), isNull);
   });
 
