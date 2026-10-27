@@ -290,10 +290,19 @@ class PageValueFetcher {
     String url,
   ) {
     if (!isAmazonHost(url)) return (price: null, unavailable: false);
-    final visible = htmlToText(body).toLowerCase();
-    final unavailable = visible.contains('currently unavailable') ||
-        visible.contains('out of stock');
     final doc = html_parser.parse(body);
+    // Availability comes only from Amazon's own #availability block. Whole
+    // page text cannot be trusted for this: live in-stock pages still carry
+    // "currently unavailable" strings for other variants in hidden slots.
+    var unavailable = false;
+    for (final sel in const ['#availability', '#availabilityInsideBuyBox_feature_div']) {
+      for (final n in doc.querySelectorAll(sel)) {
+        final t = n.text.toLowerCase();
+        if (t.contains('currently unavailable') || t.contains('out of stock')) {
+          unavailable = true;
+        }
+      }
+    }
     const selectors = [
       '#corePriceDisplay_desktop_feature_div .a-offscreen',
       '#corePrice_feature_div .a-offscreen',

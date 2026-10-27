@@ -27,14 +27,29 @@ void main() {
       expect(PageValueFetcher.amazonOffer(body, url).price, isNull);
     });
 
-    test('flags currently unavailable items', () {
+    test('flags currently unavailable items via the availability block', () {
       final body = page(
         priceBlock:
             '<div id="corePrice_feature_div"><span class="a-offscreen">₹59,900.00</span></div>',
-        extra: '<div>Currently unavailable.</div>',
+        extra:
+            '<div id="availability"><span>Currently unavailable. We don\'t know when this item will be back in stock.</span></div>',
       );
       final r = PageValueFetcher.amazonOffer(body, url);
       expect(r.unavailable, isTrue);
+    });
+
+    test('unavailable strings outside the availability block do not flag', () {
+      // Real in-stock pages still carry "currently unavailable" text in
+      // hidden variant slots; only the #availability block counts.
+      final body = page(
+        priceBlock:
+            '<div id="corePrice_feature_div"><span class="a-price"><span class="a-offscreen">₹59,900.00</span></span></div>',
+        extra:
+            '<div id="twister"><span>Currently unavailable.</span></div><div id="availability"><span class="a-color-success">In stock</span></div>',
+      );
+      final r = PageValueFetcher.amazonOffer(body, url);
+      expect(r.unavailable, isFalse);
+      expect(r.price, 59900);
     });
 
     test('conflicting buy-box prices are ambiguous, never guessed', () {
