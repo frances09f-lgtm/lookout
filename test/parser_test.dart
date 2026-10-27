@@ -18,6 +18,20 @@ void main() {
     expect(p.target, 2100);
   });
 
+  test('exceeds target parses to greaterThan', () {
+    final p = GoalParser.parse('Alert me when the price exceeds 2100');
+    expect(p.outcome, ParseOutcome.ok);
+    expect(p.condition, WatchCondition.greaterThan);
+    expect(p.target, 2100);
+  });
+
+  test('surpasses target parses to greaterThan', () {
+    final p = GoalParser.parse('Tell me when bitcoin surpasses 70000');
+    expect(p.outcome, ParseOutcome.ok);
+    expect(p.condition, WatchCondition.greaterThan);
+    expect(p.target, 70000);
+  });
+
   test('reminder with duration parses due time ~2h out', () {
     final before = DateTime.now();
     final p = GoalParser.parse("Remind me in 2 hours if this task hasn't been completed");
