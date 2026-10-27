@@ -271,6 +271,50 @@ class PageValueFetcher {
     );
   }
 
+  /// True for Amazon store hosts in any country (amazon.in, amazon.com, ...).
+  static bool isAmazonHost(String url) {
+    final host = Uri.tryParse(url)?.host.toLowerCase() ?? '';
+    return host == 'amazon.com' ||
+        host.endsWith('.amazon.com') ||
+        host.startsWith('amazon.') ||
+        host.contains('.amazon.');
+  }
+
+  /// Amazon buy-box price from the page's own price blocks. Amazon pages
+  /// must never fall through to generic text reading: EMI and installment
+  /// amounts on them look like prices, and a wrong number must never come
+  /// back as the verified price. Reads only the dedicated buy-box price
+  /// containers, where EMI text never appears.
+  static ({double? price, bool unavailable}) amazonOffer(
+    String body,
+    String url,
+  ) {
+    if (!isAmazonHost(url)) return (price: null, unavailable: false);
+    final visible = htmlToText(body).toLowerCase();
+    final unavailable = visible.contains('currently unavailable') ||
+        visible.contains('out of stock');
+    final doc = html_parser.parse(body);
+    const selectors = [
+      '#corePriceDisplay_desktop_feature_div .a-offscreen',
+      '#corePrice_feature_div .a-offscreen',
+      '#corePriceDisplay_mobile_feature_div .a-offscreen',
+      '#priceblock_ourprice',
+      '#priceblock_dealprice',
+      '#price_inside_buybox',
+    ];
+    for (final sel in selectors) {
+      final prices = <double>{};
+      for (final n in doc.querySelectorAll(sel)) {
+        final cleaned = n.text.replaceAll(RegExp(r'[^0-9.,]'), '');
+        final v = _toNumber(cleaned);
+        if (v != null) prices.add(v);
+      }
+      if (prices.length == 1) return (price: prices.single, unavailable: unavailable);
+      if (prices.length > 1) return (price: null, unavailable: unavailable);
+    }
+    return (price: null, unavailable: unavailable);
+  }
+
   /// Fetches [url] and extracts a value. Never throws: failures come back as
   /// honest FetchOutcome.failed descriptions. Transient network failures
   /// (the phone's radio or DNS still waking up when a background check
@@ -324,6 +368,23 @@ class PageValueFetcher {
     final raw = await _fetchBody(url);
     if (raw.error != null) return FetchOutcome.failed(raw.error!);
     final body = raw.body!;
+    if (isAmazonHost(url)) {
+      // Amazon is EMI-safe or nothing: only the buy-box price blocks count,
+      // and there is no generic-text fallback to misread an EMI amount.
+      final amazon = amazonOffer(body, url);
+      if (amazon.unavailable)
+        return FetchOutcome.failed(
+          'Amazon page from $host says the item is currently unavailable; no current price confirmed',
+        );
+      if (amazon.price != null)
+        return FetchOutcome.found(
+          amazon.price!,
+          'Amazon buy-box price ${amazon.price} on $host',
+        );
+      return FetchOutcome.failed(
+        'Amazon page from $host shows no clear buy-box price; it may be a robot-check page or an unfamiliar layout. No price was guessed',
+      );
+    }
     final offer = productOffer(body, url);
     final header = retailerHeader(body, url);
     if (header.unavailable || header.mrpOnly)

@@ -1,7 +1,7 @@
 name: lookout
 description: "Lookout - your personal background agent."
 publish_to: 'none'
-version: 1.1.12+60
+version: 1.1.13+61
 
 environment:
   sdk: ^3.13.5

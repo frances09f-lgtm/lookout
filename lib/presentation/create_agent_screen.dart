@@ -203,25 +203,13 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
       _testOutcome = null;
       _testedUrl = null;
     });
-    final host = Uri.tryParse(url)?.host.toLowerCase() ?? '';
     final FetchOutcome outcome;
-    if (host == 'amazon.com' ||
-        host.endsWith('.amazon.com') ||
-        host.startsWith('amazon.') ||
-        host.contains('.amazon.')) {
-      // Amazon product pages cannot be verified reliably: the reader can
-      // mistake an EMI amount for the price, and a wrong number must never
-      // be shown as a verified price. Block the test instead of guessing.
-      outcome = FetchOutcome.failed(
-        'Amazon pages cannot be tested reliably: Lookout may read an EMI '
-        'amount instead of the actual price. This link is not supported '
-        'for testing.',
-      );
-    } else {
-      final fetch =
-          PageValueFetcher.debugFetchValue ?? PageValueFetcher.fetchValue;
-      outcome = await fetch(url);
-    }
+    // Amazon pages run through the same EMI-safe path as background checks:
+    // only the buy-box price blocks count, so an EMI amount can no longer
+    // come back as the verified price.
+    final fetch =
+        PageValueFetcher.debugFetchValue ?? PageValueFetcher.fetchValue;
+    outcome = await fetch(url);
     if (!mounted || _urlController.text.trim() != url) return;
     setState(() {
       _testingLink = false;
