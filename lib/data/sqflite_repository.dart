@@ -21,6 +21,13 @@ class SqfliteAgentRepository implements AgentRepository {
     final db = await openDatabase(
       dbPath,
       version: _dbVersion,
+      // Every opener gets its OWN native connection. The default
+      // (singleInstance: true) shares one native connection per path
+      // process-wide across Flutter engines, so the Workmanager isolate's
+      // close() used to break the foreground app's live database - every
+      // later read threw DatabaseException(database_closed), the task
+      // history failure in v1.1.13 (tekartik/sqflite#558).
+      singleInstance: false,
       onCreate: (db, _) async {
         await db.execute('''
           CREATE TABLE agents(

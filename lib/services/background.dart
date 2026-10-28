@@ -87,32 +87,59 @@ Future<bool> runBackgroundCycle({
 
 @pragma('vm:entry-point')
 void lookoutCallbackDispatcher() {
-  Workmanager().executeTask((task, inputData) async {
-    // The error record must survive a broken database: SharedPreferences is
-    // written even when the SQLite store cannot be opened at all.
-    AgentRepository? repo;
+  Workmanager().executeTask((task, inputData) => runWorkmanagerTask());
+}
+
+/// One Workmanager task execution, split from the entry point so tests can
+/// drive it with fakes.
+///
+/// The error record must survive a broken database: SharedPreferences is
+/// written even when the SQLite store cannot be opened at all.
+///
+/// This isolate's store is closed on the way out - which is only safe
+/// because every opener gets its own native connection
+/// (singleInstance: false in SqfliteAgentRepository.open). sqflite's
+/// default shares one native connection per path process-wide, so closing
+/// the shared handle here used to break the foreground app's live
+/// connection: every later read threw DatabaseException(database_closed)
+/// (tekartik/sqflite#558; the v1.1.13 task-history failure).
+Future<bool> runWorkmanagerTask({
+  Future<AgentRepository> Function()? openRepo,
+  Future<LookoutNotifier> Function()? makeNotifier,
+}) async {
+  AgentRepository? repo;
+  try {
+    final notifier = await (makeNotifier?.call() ??
+        () async {
+          final n = LocalNotificationsService();
+          await n.init(requestPermission: false);
+          return n;
+        }());
+    repo = await (openRepo?.call() ?? SqfliteAgentRepository.open());
     try {
-      final notifier = LocalNotificationsService();
-      await notifier.init(requestPermission: false);
-      repo = await SqfliteAgentRepository.open();
-      final ok = await runBackgroundCycle(
+      return await runBackgroundCycle(
         repo: repo,
         checker: AgentChecker(repo: repo, notifier: notifier),
       );
+    } finally {
+      // Safe to close: every opener gets its own native connection
+      // (singleInstance: false in SqfliteAgentRepository.open), so this
+      // only releases the worker's handle, never the foreground app's.
+      // Closing the formerly SHARED connection here was the v1.1.13
+      // database_closed failure (tekartik/sqflite#558).
       await repo.close();
-      return ok;
-    } catch (e) {
-      final at = DateTime.now().toIso8601String();
-      try {
-        await repo?.putKv('lastBackgroundError', '$at $e');
-        await repo?.close();
-      } catch (_) {
-        // The store itself may be what failed; the mirror still lands.
-      }
-      await _mirrorPrefs({prefLastError: '$at $e'});
-      return false;
     }
-  });
+  } catch (e) {
+    final at = DateTime.now().toIso8601String();
+    try {
+      await repo?.putKv('lastBackgroundError', '$at $e');
+      await repo?.close();
+    } catch (_) {
+      // The store itself may be what failed; the mirror still lands.
+    }
+    await _mirrorPrefs({prefLastError: '$at $e'});
+    return false;
+  }
 }
 
 class BackgroundScheduler {

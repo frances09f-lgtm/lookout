@@ -50,7 +50,7 @@ jobs:
           test "$CERT_SHA" = '21e086dd5542df3c6f3cb10318e2508517edd28d91f5a388cc3fa79f2e74bdd4'
           "$AAPT" dump badging "$APK" | tee /tmp/badging.txt
           grep -F "package: name='com.ambi.lookout'" /tmp/badging.txt
-          grep -F "versionName='1.1.13'" /tmp/badging.txt
+          grep -F "versionName='1.1.14'" /tmp/badging.txt
           test "${{ github.run_number }}" -gt 173
           sha256sum "$APK"
       - uses: actions/upload-artifact@v4
@@ -62,5 +62,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo 'IyBMb29rb3V0IDEuMS4xMwoKIyMgRml4ZWQKLSBBbWF6b24gbGlua3MgY2FuIGJlIHdhdGNoZWQgYW5kIHRlc3RlZCBhZ2Fpbi4gTG9va291dCBub3cgcmVhZHMgdGhlIHByaWNlIGZyb20gQW1hem9uJ3Mgb3duIGJ1eS1ib3ggcHJpY2UgYmxvY2tzIG9ubHksIHNvIGFuIEVNSSBvciBpbnN0YWxsbWVudCBhbW91bnQgY2FuIG5vIGxvbmdlciBiZSBtaXN0YWtlbiBmb3IgdGhlIHByaWNlLiBJZiB0aGUgYnV5LWJveCBwcmljZSBpcyBtaXNzaW5nIG9yIGFtYmlndW91cywgdGhlIGNoZWNrIGZhaWxzIGhvbmVzdGx5IGluc3RlYWQgb2YgZ3Vlc3NpbmcuIFVuYXZhaWxhYmxlIGl0ZW1zIGFyZSByZXBvcnRlZCBhcyB1bmF2YWlsYWJsZS4KCiMjIENoZWNrcyB1bmNoYW5nZWQKLSBBIHdhdGNoIGlzIHN0aWxsIG9ubHkgY3JlYXRlZCBmcm9tIG9uZSBleGFjdCwgdmVyaWZpZWQsIGluLXN0b2NrIG9mZmVyIHdpdGggYSBuYW1lZCBjb3VudHJ5LiBOb3RoaW5nIHdhcyByZWxheGVkLgoKIyMgSW5jbHVkZXMgYWxsIG9mIDEuMS4xMgotIFBsYWluIG91dC1vZi1zdG9jayBhbmQgYWNjdXJhdGUgb2ZmZXIgbWVzc2FnZXM7IHJlYWRhYmxlIHdhdGNoIG9uL29mZiBzd2l0Y2ggaW4gZGFyayB0aGVtZS4K' | base64 -d > /tmp/RELEASE_NOTES.md
-          gh release create v1.1.13 "build/app/outputs/flutter-apk/Lookout.apk" --target "$GITHUB_SHA" --title "Lookout 1.1.13 - Amazon buy-box price reads, EMI-safe" --notes-file /tmp/RELEASE_NOTES.md
+          echo 'IyBMb29rb3V0IDEuMS4xNAoKIyMgRml4ZWQKLSBUaGUgYXBwIG5vIGxvbmdlciBsb3NlcyB0b3VjaCB3aXRoIGl0cyBvd24gZGF0YSBhZnRlciBhIGJhY2tncm91bmQgY2hlY2sgcnVucy4gQmVmb3JlLCBvbmNlIHRoZSBiYWNrZ3JvdW5kIHdvcmtlciBmaW5pc2hlZCBhIGNoZWNrLCB0aGUgbmV4dCBzY3JlZW4geW91IG9wZW5lZCBjb3VsZCBzaG93ICJkYXRhYmFzZV9jbG9zZWQiIGVycm9ycyBpbnN0ZWFkIG9mIHRhc2sgZGV0YWlscywgaGlzdG9yeSBhbmQgd29ya2VyIHN0YXR1cyB1bnRpbCB0aGUgYXBwIHdhcyBmdWxseSByZXN0YXJ0ZWQuIFlvdXIgdGFza3MgYW5kIGhpc3Rvcnkgd2VyZSBuZXZlciBkZWxldGVkIC0gdGhlIGFwcCBjb3VsZCBub3QgcmVhZCB0aGVtIGZvciBhIHdoaWxlLiBUaGUgYmFja2dyb3VuZCB3b3JrZXIgbm93IGxlYXZlcyB0aGUgb3BlbiBhcHAncyBjb25uZWN0aW9uIGFsb25lLgoKIyMgQ2hlY2tzIHVuY2hhbmdlZAotIEEgd2F0Y2ggaXMgc3RpbGwgb25seSBjcmVhdGVkIGZyb20gb25lIGV4YWN0LCB2ZXJpZmllZCwgaW4tc3RvY2sgb2ZmZXIgd2l0aCBhIG5hbWVkIGNvdW50cnkuIE5vdGhpbmcgd2FzIHJlbGF4ZWQuCg==' | base64 -d > /tmp/RELEASE_NOTES.md
+          gh release create v1.1.14 "build/app/outputs/flutter-apk/Lookout.apk" --target "$GITHUB_SHA" --title "Lookout 1.1.14 - Background checks no longer break task and history reads" --notes-file /tmp/RELEASE_NOTES.md
