@@ -12,7 +12,7 @@ class CloseCountingRepo extends InMemoryAgentRepository {
   }
 }
 
-class BrokenStoreRepo extends InMemoryAgentRepository {
+class BrokenStoreRepo extends CloseCountingRepo {
   @override
   Future<List<Agent>> dueAgents(DateTime now) =>
       throw StateError('store exploded');

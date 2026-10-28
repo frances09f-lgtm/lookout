@@ -52,6 +52,8 @@ void main() {
     final background = await databaseFactory.openDatabase(dbPath,
         options: OpenDatabaseOptions(version: 1));
     await background.close();
-    await expectLater(ui.query('sqlite_master'), throwsA(anything));
+    // sqflite throws the closed-database error synchronously, before
+    // any Future exists: match it with the closure form.
+    expect(() => ui.query('sqlite_master'), throwsA(anything));
   });
 }
