@@ -36,7 +36,7 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('Check every'), findsOneWidget);
     expect(
-      find.textContaining('5 and 10 minutes only while the app is open'),
+      find.textContaining('5 and 10-minute checks are attempted while the app is open'),
       findsOneWidget,
     );
     // Save stays disabled until the selection actually changes.
