@@ -69,7 +69,16 @@ Future<bool> runBackgroundCycle({
         ? 'Checked ${result.checked} of ${result.totalDue} due tasks within the background time budget; the rest stay due for the next cycle.'
         : '';
     await repo.putKv('lastBackgroundNote', note);
-    await _mirrorPrefs({prefLastCompletedAt: completedAt, prefLastNote: note});
+    // A completed cycle supersedes any earlier worker error: clear it in
+    // both mirrors so the status line never shows a stale crash next to a
+    // fresh completion (the Oct 25 permission error that lingered for days
+    // after it was fixed).
+    await repo.putKv('lastBackgroundError', '');
+    await _mirrorPrefs({
+      prefLastCompletedAt: completedAt,
+      prefLastNote: note,
+      prefLastError: '',
+    });
     return true;
   } catch (e) {
     final at = clock().toIso8601String();
