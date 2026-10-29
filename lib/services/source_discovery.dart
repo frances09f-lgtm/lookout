@@ -422,6 +422,11 @@ class SourceCandidate {
   /// own site: the reading then comes from a third-party tracker page, not the
   /// merchant, and is labelled as such instead of looking merchant-current.
   final String? trackedSellerHost;
+
+  /// True when the price was read from the merchant page's visible HTML
+  /// rather than machine-readable structured data - a looser evidence class,
+  /// labelled as such.
+  final bool visibleOffer;
   bool get thirdPartyTracker =>
       trackedSellerHost != null &&
       SourceCandidateValidator.registrableDomain(trackedSellerHost!) !=
@@ -434,7 +439,9 @@ class SourceCandidate {
           ? '$currency ${price.toStringAsFixed(2)} • quote page without structured data - confirm it shows this price'
           : thirdPartyTracker
               ? '$currency ${price.toStringAsFixed(2)} • $country • tracked from $trackedSellerHost'
-              : '$currency ${price.toStringAsFixed(2)} • $country';
+              : visibleOffer
+                  ? '$currency ${price.toStringAsFixed(2)} • $country • read from merchant page text'
+                  : '$currency ${price.toStringAsFixed(2)} • $country';
   const SourceCandidate({
     required this.url,
     required this.product,
@@ -445,6 +452,7 @@ class SourceCandidate {
     this.marketQuote = false,
     this.readableQuote = false,
     this.trackedSellerHost,
+    this.visibleOffer = false,
   });
 }
 
@@ -579,6 +587,8 @@ class SourceCandidateValidator {
         /* malformed is not evidence */
       }
     }
+    // No parseable Product structured data: try the visible merchant offer.
+    if (products.isEmpty) return validateVisibleOffer(spec, page, now: now);
     // Reject carousels/listings even when one card happens to match.
     if (products.length != 1) return null;
     final p = products.single;
@@ -658,16 +668,11 @@ class SourceCandidateValidator {
     }
     if (sellerDomain != null && sellerDomain != pageDomain) {
       // A third-party tracker's claim about another seller's price carries no
-      // authority of its own: without a machine-checkable validity date that
-      // is still current, staleness is unverifiable and the page is rejected.
-      final untilRaw = o['priceValidUntil']?.toString();
-      final until = untilRaw == null ? null : DateTime.tryParse(untilRaw);
-      if (until == null) return null;
-      final reference = now ?? DateTime.now();
-      final untilDay = DateTime.utc(until.year, until.month, until.day);
-      final refDay =
-          DateTime.utc(reference.year, reference.month, reference.day);
-      if (untilDay.isBefore(refDay)) return null;
+      // authority of its own, and no shared machine-checkable freshness signal
+      // is established yet (priceValidUntil marks a validity window, not when
+      // the tracker's reading was taken). Trackers are rejected until a
+      // grounded freshness check exists.
+      return null;
     }
     return SourceCandidate(
       url: page.finalUrl,
@@ -679,6 +684,123 @@ class SourceCandidateValidator {
       trackedSellerHost: sellerHost,
     );
   }
+
+  /// Visible-HTML offer reading for a merchant's own product page that
+  /// serves no parseable structured data. The page host is the seller, so a
+  /// fresh read of this page IS the merchant's current offer; third-party
+  /// tracker pages never feed this path. Every leg must be proven from the
+  /// page itself: product identity (including pinned variant/storage) from
+  /// the title or main heading BEFORE any price is read, region from the
+  /// merchant's own ccTLD, stock from explicit in-stock text, and exactly one
+  /// dominant current price among price-marked elements after MRP/EMI/
+  /// savings/accessory contexts are excluded. Any ambiguity rejects.
+  static SourceCandidate? validateVisibleOffer(
+    DiscoverySpec spec,
+    ProductPage page, {
+    DateTime? now,
+  }) {
+    if (spec.kind != 'productPrice') return null;
+    // Region: the merchant's own domain must sit on the requested country's
+    // ccTLD. A .com page in an INR task proves nothing about the country.
+    if (!_onCountryTld(page.finalUrl.host, spec.country)) return null;
+    final doc = html.parse(page.body);
+    doc
+        .querySelectorAll(
+          'script, style, noscript, template, [hidden], [aria-hidden="true"]',
+        )
+        .forEach((e) => e.remove());
+    // Identity first: the page must be ABOUT the requested product+variant.
+    final title = doc.querySelector('title')?.text.trim() ?? '';
+    final h1 = doc.querySelector('h1')?.text.trim() ?? '';
+    if (!DiscoveryTaskParser.identityMatches(title, spec) &&
+        (h1.isEmpty || !DiscoveryTaskParser.identityMatches(h1, spec))) {
+      return null;
+    }
+    if (spec.colour != null &&
+        !RegExp(
+          '\\b\${RegExp.escape(spec.colour!)}\\b',
+          caseSensitive: false,
+        ).hasMatch(title)) {
+      return null;
+    }
+    final visible = doc.body?.text ?? '';
+    // Stock must be explicit, never assumed.
+    final low = visible.toLowerCase();
+    if (low.contains('out of stock') ||
+        low.contains('currently unavailable') ||
+        low.contains('sold out')) {
+      return null;
+    }
+    if (!low.contains('in stock')) return null;
+    // Currency tokens matching the task's currency only.
+    final symbols = _currencySymbols[spec.currency];
+    if (symbols == null) return null;
+    final tokenRe = RegExp(
+      '(?:${symbols.map(RegExp.escape).join('|')})\\s?(\\d[\\d,]*(?:\\.\\d{1,2})?)',
+      caseSensitive: false,
+    );
+    double? amount(String raw) {
+      final v = double.tryParse(raw.replaceAll(',', ''));
+      return v != null && v.isFinite && v > 0 ? v : null;
+    }
+    // Only elements that mark themselves as prices; strike/MRP/EMI/savings/
+    // accessory/warranty/bundle contexts are excluded, as is any element whose
+    // own text frames the amount as a non-current price.
+    final markerRe = RegExp(r'price|amount|cost', caseSensitive: false);
+    final excludedClass = RegExp(
+      r'warrant|accessor|fbt|bundle|emi|sav|basis|was|strike|mrp|list|old|cross',
+      caseSensitive: false,
+    );
+    final excludedText = RegExp(
+      r'm\.?r\.?p|list price|emi|per month|/\s?mo(nth)?|you save|save up to|\d+%\s*(off|savings)|percent (savings|off)|cashback|bank offer|exchange|without exchange|effective|rental|subscribe',
+      caseSensitive: false,
+    );
+    final counts = <double, int>{};
+    for (final e in doc.querySelectorAll('[class], [id]')) {
+      final sig = '${e.attributes['class'] ?? ''} ${e.attributes['id'] ?? ''}';
+      if (!markerRe.hasMatch(sig)) continue;
+      if (excludedClass.hasMatch(sig)) continue;
+      if (e.parent?.localName == 's' ||
+          e.parent?.localName == 'del' ||
+          e.parent?.localName == 'strike') {
+        continue;
+      }
+      final text = e.text;
+      if (excludedText.hasMatch(text)) continue;
+      for (final m in tokenRe.allMatches(text)) {
+        final v = amount(m.group(1)!);
+        if (v != null) counts[v] = (counts[v] ?? 0) + 1;
+      }
+    }
+    if (counts.isEmpty) return null;
+    final ranked = counts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final best = ranked.first;
+    // One clean price alone is strong; several distinct amounts need a clear
+    // modal winner so variant/accessory prices cannot impersonate the offer.
+    if (ranked.length > 1 && (best.value < 3 || best.value < ranked[1].value * 2)) {
+      return null;
+    }
+    return SourceCandidate(
+      url: page.finalUrl,
+      product: title.isNotEmpty ? title : h1,
+      price: best.key,
+      currency: spec.currency,
+      country: spec.country,
+      checkedAt: now ?? DateTime.now(),
+      visibleOffer: true,
+    );
+  }
+
+  static const _currencySymbols = {
+    'INR': ['₹', 'Rs.', 'Rs', 'INR'],
+    'USD': ['US\$', '\$'],
+    'EUR': ['€'],
+    'GBP': ['£'],
+    'JPY': ['¥'],
+    'AUD': ['A\$'],
+    'CAD': ['C\$'],
+  };
 
   /// The seller's domain from an offer's offeredBy/url field, when it is
   /// explicitly a domain (amazon.in), else null. A bare name like "Amazon"
