@@ -30,6 +30,202 @@ void main() {
   String priceEl(String amount, [String cls = 'a-price']) =>
       '<span class="$cls">₹$amount</span>';
 
+  ProductPage xm5Page(String body) => ProductPage(
+        Uri.parse(
+          'https://www.vijaysales.com/p/206834/sony-wh-1000xm5-headphones-black',
+        ),
+        200,
+        '<html><head><title>'
+        'Sony WH-1000XM5 Wireless Noise-Canceling Headphones (Black) | Vijay Sales'
+        '</title></head><body>'
+        '<h1>Sony WH-1000XM5 Wireless Noise-Canceling Headphones (Black)</h1>'
+        '<p class="price">₹26,990</p><p class="price">₹26,990</p><p class="price">₹26,990</p>'
+        '$body</body></html>',
+      );
+
+  DiscoverySpec xm5Spec() => DiscoveryTaskParser.parse(
+        'Tell me when Sony WH-1000XM5 drops below ₹25000',
+        country: 'IN',
+        currency: 'INR',
+      ).spec!;
+
+  test('.com merchant with own checkout CTA and India signal accepts', () {
+    final v = SourceCandidateValidator.validate(
+      xm5Spec(),
+      xm5Page('<button type="button">Add to Cart</button>'
+          '<div>Check delivery at your pincode</div>'
+          '<div>Imported by Sony India Private Limited</div>'),
+    );
+    expect(v, isNotNull);
+    expect(v!.price, 26990);
+    expect(v.currency, 'INR');
+  });
+
+  test('a Notify Me page is not available stock', () {
+    expect(
+      SourceCandidateValidator.validate(
+        xm5Spec(),
+        xm5Page('<button type="button">Notify Me</button>'
+            '<div>Check delivery at your pincode</div>'
+            '<div>Imported by Sony India Private Limited</div>'),
+      ),
+      isNull,
+    );
+  });
+
+  test('disabled-only CTA does not prove stock', () {
+    expect(
+      SourceCandidateValidator.validate(
+        xm5Spec(),
+        xm5Page('<button type="button" disabled>Add to Cart</button>'
+            '<div>Check delivery at your pincode</div>'
+            '<div>Imported by Sony India Private Limited</div>'),
+      ),
+      isNull,
+    );
+  });
+
+  test('pre-order pages reject even with an enabled CTA', () {
+    expect(
+      SourceCandidateValidator.validate(
+        xm5Spec(),
+        xm5Page('<button type="button">Add to Cart</button>'
+            '<div>Pre-order now, ships soon. Check pincode</div>'
+            '<div>Imported by Sony India Private Limited</div>'),
+      ),
+      isNull,
+    );
+  });
+
+  test('.com page without an explicit India signal rejects (currency is not evidence)', () {
+    expect(
+      SourceCandidateValidator.validate(
+        xm5Spec(),
+        xm5Page('<button type="button">Add to Cart</button>'),
+      ),
+      isNull,
+    );
+  });
+
+  test('pincode wording without the country named anywhere rejects', () {
+    expect(
+      SourceCandidateValidator.validate(
+        xm5Spec(),
+        xm5Page('<button type="button">Add to Cart</button>'
+            '<div>Check delivery at your pincode</div>'),
+      ),
+      isNull,
+    );
+  });
+
+  test('manufacturer or importer India address alone is not storefront evidence', () {
+    expect(
+      SourceCandidateValidator.validate(
+        xm5Spec(),
+        xm5Page('<button type="button">Add to Cart</button>'
+            '<div>Imported by Sony India Private Limited</div>'),
+      ),
+      isNull,
+    );
+  });
+
+  test('picker page with in-stock text outside the buy box rejects', () {
+    expect(
+      SourceCandidateValidator.validate(
+        xm5Spec(),
+        xm5Page('<div id="twister"><span>Black</span><span>Silver</span></div>'
+            '<p class="promo">In stock</p>'
+            '<button type="button">Add to Cart</button>'
+            '<div>Check delivery at your pincode</div>'
+            '<div>Imported by Sony India Private Limited</div>'),
+      ),
+      isNull,
+    );
+  });
+
+  test('picker page with only a generic enabled CTA cannot prove the selected variant', () {
+    expect(
+      SourceCandidateValidator.validate(
+        xm5Spec(),
+        xm5Page('<div id="twister"><span>Black</span><span>Silver</span></div>'
+            '<button type="button">Add to Cart</button>'
+            '<div>Imported by Sony India Private Limited</div>'),
+      ),
+      isNull,
+    );
+  });
+
+  test('picker page with explicit in-stock text for the titled variant accepts', () {
+    final v = SourceCandidateValidator.validate(
+      xm5Spec(),
+      xm5Page('<div id="twister"><span>Black</span><span>Silver</span></div>'
+          '<div id="availability">In stock</div>'
+          '<button type="button">Add to Cart</button>'
+          '<div>Check delivery at your pincode</div>'
+          '<div>Imported by Sony India Private Limited</div>'),
+    );
+    expect(v, isNotNull);
+    expect(v!.price, 26990);
+  });
+
+  test('a buy link that leads to another domain is a tracker, not a checkout', () {
+    expect(
+      SourceCandidateValidator.validate(
+        xm5Spec(),
+        xm5Page('<a href="https://www.amazon.in/dp/B09XS7JWHH">Buy Now</a>'
+            '<div>Check delivery at your pincode</div>'),
+      ),
+      isNull,
+    );
+  });
+
+  test('accessory pages naming the model are not the product', () {
+    final xm5 = DiscoveryTaskParser.parse(
+      'Tell me when Sony WH-1000XM5 drops below ₹25000',
+      country: 'IN',
+      currency: 'INR',
+    ).spec!;
+    for (final t in [
+      'Replacement Ear Pads for Sony WH-1000XM5 | Vijay Sales',
+      'Sony WH-1000XM5 Hard Case Cover | Vijay Sales',
+      'Sony WH-1000XM4 Wireless Noise-Canceling Headphones (Black) | Vijay Sales',
+    ]) {
+      final page = _mk(
+        url: 'https://www.vijaysales.com/p/1/accessory',
+        title: t,
+        priceElements: [
+          '<p class="price">₹1,299</p>',
+          '<p class="price">₹1,299</p>',
+          '<p class="price">₹1,299</p>',
+          '<button type="button">Add to Cart</button>',
+          '<div>Check delivery at your pincode</div>',
+          '<div>Imported by Sony India Private Limited</div>',
+        ],
+      );
+      expect(SourceCandidateValidator.validate(xm5, page), isNull, reason: t);
+    }
+  });
+
+  test('a Notify Me page is not available stock', () {
+    final xm5 = DiscoveryTaskParser.parse(
+      'Tell me when Sony WH-1000XM5 drops below ₹25000',
+      country: 'IN',
+      currency: 'INR',
+    ).spec!;
+    final page = _mk(
+      url: 'https://www.vijaysales.com/p/206834/sony-wh-1000xm5-headphones-black',
+      title:
+          'Sony WH-1000XM5 Wireless Noise-Canceling Headphones (Black) | Vijay Sales',
+      priceElements: [
+        '<p class="price">₹26,990</p>',
+        '<p class="price">₹26,990</p>',
+        '<p class="price">₹26,990</p>',
+      ],
+      stock: 'Notify Me',
+    );
+    expect(SourceCandidateValidator.validate(xm5, page), isNull);
+  });
+
   test('merchant page with dominant current price accepts, labelled as HTML reading', () {
     final page = _mk(
       url: url,
