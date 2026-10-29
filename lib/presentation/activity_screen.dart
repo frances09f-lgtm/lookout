@@ -128,7 +128,9 @@ class _ActivityScreenState extends State<ActivityScreen> {
                 child: ListTile(
                   key: ValueKey('history-task-${task.id}'),
                   title: Text(task.title),
-                  subtitle: Text('Task #${task.id} · ${task.statusLabel}'),
+                  subtitle: Text(
+                    'Task #${task.id} · ${task.statusLabel} · created ${fmtHistoryTime(task.createdAt)}',
+                  ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(
@@ -176,6 +178,13 @@ class _ActivityScreenState extends State<ActivityScreen> {
                   '${agent?.title ?? 'Task'} · #$id',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
+                if (agent != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Created ${fmtHistoryTime(agent.createdAt)}',
+                    style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                  ),
+                ],
                 if (agent != null) ...[
                   const SizedBox(height: 4),
                   Text(
