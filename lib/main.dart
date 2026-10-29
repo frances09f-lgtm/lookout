@@ -9,6 +9,7 @@ import 'presentation/agent_details_screen.dart';
 import 'presentation/boot_screen.dart';
 import 'presentation/home_screen.dart';
 import 'presentation/theme.dart';
+import 'services/alarm_engine.dart';
 import 'services/background.dart';
 import 'services/checker.dart';
 import 'services/notifications.dart';
@@ -81,7 +82,17 @@ class LookoutRootState extends State<LookoutRoot> {
     return notifications;
   }
 
-  Future<void> _initBackgroundReal() => BackgroundScheduler().init();
+  Future<void> _initBackgroundReal() async {
+    await BackgroundScheduler().init();
+    // Exact-alarm engine (prototype): on-time closed-app checks. The
+    // WorkManager periodic task above stays registered as the fallback.
+    // A missing plugin channel (host tests) or scheduling failure must
+    // never fail startup: the fallback worker still runs.
+    try {
+      await PluginAlarmClock().initialize();
+      await rescheduleCheckAlarm();
+    } catch (_) {}
+  }
 
   /// Records a non-fatal startup failure where the history screen's
   /// background-status line will surface it: the SharedPreferences mirror
@@ -285,6 +296,10 @@ class _LookoutAppState extends State<LookoutApp>
         state == AppLifecycleState.inactive) {
       _foregroundChecks?.cancel();
       _foregroundChecks = null;
+      // Arm the exact-alarm chain for the earliest due check before the
+      // app leaves the foreground; the alarm isolate re-arms after each
+      // fire, and WorkManager remains the fallback.
+      rescheduleCheckAlarm();
     }
   }
 
