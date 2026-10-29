@@ -1,0 +1,66 @@
+name: Build APK
+on:
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Publish the verified APK as a GitHub release
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Restore signing keystore
+        run: |
+          echo "${{ secrets.LOOKOUT_KEYSTORE_BASE64 }}" | base64 -d > $RUNNER_TEMP/lookout-release.jks
+          cat >> android/gradle.properties <<GP
+          LOOKOUT_KEYSTORE_FILE=$RUNNER_TEMP/lookout-release.jks
+          LOOKOUT_KEYSTORE_PASSWORD=${{ secrets.LOOKOUT_KEYSTORE_PASSWORD }}
+          LOOKOUT_KEY_ALIAS=${{ secrets.LOOKOUT_KEY_ALIAS }}
+          LOOKOUT_KEY_PASSWORD=${{ secrets.LOOKOUT_KEY_PASSWORD }}
+          GP
+      - run: flutter pub get
+      - run: flutter test
+      - name: Build APK
+        run: |
+          APP_VERSION=$(grep '^version:' pubspec.yaml | sed -E 's/version: ([0-9.]+).*/\1/')
+          flutter build apk --release --target-platform android-arm64 --build-number=${{ github.run_number }} --build-name="$APP_VERSION" -v
+      - run: mv build/app/outputs/flutter-apk/app-release.apk "build/app/outputs/flutter-apk/Lookout.apk"
+      - name: Verify production APK identity and certificate
+        run: |
+          APK="build/app/outputs/flutter-apk/Lookout.apk"
+          SIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -name aapt | sort -V | tail -1)"
+          "$SIGNER" verify --verbose --print-certs "$APK" | tee /tmp/certificate.txt
+          grep -Fx 'Number of signers: 1' /tmp/certificate.txt
+          CERT_SHA="$(awk '/certificate SHA-256 digest:/ {print $NF}' /tmp/certificate.txt | sort -u)"
+          test "$CERT_SHA" = '21e086dd5542df3c6f3cb10318e2508517edd28d91f5a388cc3fa79f2e74bdd4'
+          "$AAPT" dump badging "$APK" | tee /tmp/badging.txt
+          grep -F "package: name='com.ambi.lookout'" /tmp/badging.txt
+          grep -F "versionName='1.1.18'" /tmp/badging.txt
+          test "${{ github.run_number }}" -gt 173
+          sha256sum "$APK"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lookout-release-apk
+          path: "build/app/outputs/flutter-apk/Lookout.apk"
+      - name: Publish verified release
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo 'IyBMb29rb3V0IDEuMS4xOAoKIyMgTmV3Ci0gV2F0Y2hlcyB3aG9zZSBzb3VyY2UgcGFnZSBoYXJkLWJsb2NrcyBhdXRvbWF0ZWQgcmVhZGVycyAoZm9yIGV4YW1wbGUgaW4uaW52ZXN0aW5nLmNvbSdzIEhUVFAgNDAzKSBub3cgcGF1c2UgYXV0b21hdGljIGNoZWNrcyBhZnRlciB0aHJlZSBibG9ja2VkIHJlYWRzIGluIGEgcm93IGluc3RlYWQgb2YgcmV0cnlpbmcgZXZlcnkgaW50ZXJ2YWwuIFRoZSB3YXRjaCBrZWVwcyBpdHMgbGFzdCB2YWx1ZSwgc2F5cyAiU291cmNlIGJsb2NrZWQiLCBhbmQgcmVzdW1lcyBhcyBzb29uIGFzIHlvdSBzZXQgYSBkaWZmZXJlbnQgc291cmNlIHBhZ2UgZnJvbSB0aGUgd2F0Y2ggc2NyZWVuLgotICJGaW5kIGEgc291cmNlIiBjYW4gbm93IHByb3ZlIGxpdmUgcXVvdGUgcGFnZXMgdGhhdCBwdWJsaXNoIG5vIHN0cnVjdHVyZWQgZGF0YSAoZ29sZCBhbmQgc2ltaWxhciBxdW90ZXMpOiBhIHBhZ2UgaXMgb2ZmZXJlZCBvbmx5IHdoZW4gaXRzIHRpdGxlIG5hbWVzIHlvdXIgc3ViamVjdCwgdGhlIHByaWNlIHNpdHMgbmV4dCB0byB0aGUgd2F0Y2hlZCBjdXJyZW5jeSwgYW5kIGEgY3VycmVudCBkYXRlIGFwcGVhcnMgbmV4dCB0byB0aGF0IHByaWNlLiBUaGVzZSBzb3VyY2VzIGFyZSBhbHdheXMgc2hvd24gZm9yIHlvdXIgY29uZmlybWF0aW9uIGJlZm9yZSBhIHdhdGNoIHN0YXJ0cy4KLSBGb3IgZ29sZC1wcmljZSB0YXNrcywgTG9va291dCBub3cgYWxzbyBjaGVja3MgZ29sZHByaWNlei5jb20gZGlyZWN0bHkgKHBlciBvdW5jZSwgaW4gVVNELCBJTlIsIEVVUiwgR0JQLCBBRUQsIEFVRCBvciBDQUQpIHdoZW4gYSBnZW5lcmFsIHNlYXJjaCBmaW5kcyBub3RoaW5nIGl0IGNhbiBwcm92ZS4KLSBUaGUgc291cmNlLXJldmlldyBzY3JlZW4ncyBjdXJyZW5jeSBjaG9pY2VzIG5vdyBpbmNsdWRlIEVVUiwgR0JQLCBBRUQsIEFVRCBhbmQgQ0FEIGFsb25nc2lkZSBJTlIgYW5kIFVTRC4KCiMjIE5vdCBmaXhlZAotIFBhZ2VzIGZyb20gc2l0ZXMgdGhhdCBibG9jayBhdXRvbWF0ZWQgcmVhZGVycyAoZm9yIGV4YW1wbGUgaW4uaW52ZXN0aW5nLmNvbSkgc3RpbGwgY2Fubm90IGJlIGZldGNoZWQ7IHRoZSBibG9jayBpcyBvbiB0aGUgc2l0ZSdzIHNpZGUuIEFmZmVjdGVkIHdhdGNoZXMgbm93IHBhdXNlIGluc3RlYWQgb2YgcmV0cnlpbmcsIGFuZCBzZXR0aW5nIGEgZGlmZmVyZW50IHNvdXJjZSBwYWdlIGZyb20gdGhlIHdhdGNoIHNjcmVlbiByZXN1bWVzIGNoZWNraW5nLgo=' | base64 -d > /tmp/RELEASE_NOTES.md
+          gh release create v1.1.18 "build/app/outputs/flutter-apk/Lookout.apk" --target "$GITHUB_SHA" --title "Lookout 1.1.18 - Blocked sources pause cleanly, and proven live quote pages for gold" --notes-file /tmp/RELEASE_NOTES.md
