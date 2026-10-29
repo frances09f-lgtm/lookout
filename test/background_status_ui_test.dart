@@ -96,7 +96,7 @@ void main() {
       MaterialApp(home: ActivityScreen(repo: repo, agentId: id)),
     );
     await t.pumpAndSettle();
-    expect(find.textContaining('Background worker last completed: 25/10 03:17'),
+    expect(find.textContaining('Background worker last completed: 25/10 3:17 AM'),
         findsOneWidget);
     expect(find.textContaining('Checked 4 of 9 due tasks'), findsOneWidget);
   });
