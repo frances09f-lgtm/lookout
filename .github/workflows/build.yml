@@ -104,8 +104,8 @@ jobs:
           test "$CERT_SHA" = '21e086dd5542df3c6f3cb10318e2508517edd28d91f5a388cc3fa79f2e74bdd4'
           "$AAPT" dump badging "$APK" | tee /tmp/badging.txt
           grep -F "package: name='com.ambi.lookout'" /tmp/badging.txt
-          grep -F "versionName='1.1.22'" /tmp/badging.txt
-          test "${{ github.run_number }}" -gt 304
+          grep -F "versionName='1.1.23'" /tmp/badging.txt
+          test "${{ github.run_number }}" -gt 308
           sha256sum "$APK"
       - uses: actions/upload-artifact@v4
         with:
@@ -116,5 +116,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo 'IyBMb29rb3V0IDEuMS4yMgoKIyMgRml4ZWQKLSBQcm9kdWN0IHRhc2tzIGNhbiBub3cgcmVhZCB0aGUgcHJpY2UgZnJvbSBhIHN0b3JlIHBhZ2UncyBvd24gdmlzaWJsZSB0ZXh0LCBub3QganVzdCBzdHJ1Y3R1cmVkIGRhdGEuIFRoZSB0YXNrICJUZWxsIG1lIHdoZW4gU2Ftc3VuZyBTMjUgMjU2Z2IgZHJvcHMgYmVsb3cg4oK5NTYwMDAiIG5vdyBmaW5kcyBhIHdvcmtpbmcgc291cmNlIG9uIGFtYXpvbi5pbiAodmVyaWZpZWQgbGl2ZTog4oK5NjMsNDk5IHJlYWQgZnJvbSB0aGUgbWVyY2hhbnQgcGFnZSkuIFdyb25nIHZhcmlhbnRzICg1MTJHQiksIHdyb25nIHByb2R1Y3RzLCBhY2Nlc3NvcnkgcGFnZXMsIHByZW9yZGVyL291dC1vZi1zdG9jayBvZmZlcnMgYW5kIHByaWNlLXRyYWNrZXIgc2l0ZXMgYXJlIHN0aWxsIHJlamVjdGVkLgotIEFsbCB0aW1lcyBub3cgc2hvdyBpbiAxMi1ob3VyIEFNL1BNIChoaXN0b3J5IGNhcmRzLCB0YXNrIGRldGFpbHMsIGhvbWUgdGlsZXMsIHN0YXR1cyBsaW5lcykuIFJlY29yZGVkIHRpbWVzIGFyZSB1bmNoYW5nZWQuCi0gQ3JlYXRpbmcgYSB0YXNrIG5vdyB3cml0ZXMgYSAiVGFzayBjcmVhdGVkIiBlbnRyeSBhdCB0aGUgc3RhcnQgb2YgaXRzIGhpc3RvcnksIHNob3dzIHRoZSBjcmVhdGlvbiB0aW1lIG9uIHRoZSBoaXN0b3J5IHNjcmVlbiwgYW5kIGNvbmZpcm1zIHdpdGggYW4gZXhwbGljaXQgIlRhc2sgY3JlYXRlZCIgbWVzc2FnZSwgc28gYSBzaWxlbnQgZmFpbHVyZSBjYW4gbm8gbG9uZ2VyIGxvb2sgbGlrZSBhIHNpbGVudCBzdWNjZXNzLgoKIyMgTm90IGZpeGVkCi0gVmVyeSBsYXJnZSBwcm9kdWN0IHBhZ2VzIChvdmVyIGFib3V0IDIgTUIsIHNvbWUgYW1hem9uLmluIHBhZ2VzIHN1Y2ggYXMgUzI0IG9yIFdILTEwMDBYTTUpIHN0aWxsIGNhbm5vdCBiZSByZWFkLgotIFNvbWUgSW5kaWFuIHN0b3JlIHBhZ2VzIChmb3IgZXhhbXBsZSB2aWpheXNhbGVzKSBzdGlsbCByZWplY3QgYmVjYXVzZSB0aGUgcGFnZSBkb2VzIG5vdCBtYXJrIG9uZSBjbGVhciBtYWluIHByaWNlIHRoZSByZWFkZXIgY2FuIHRydXN0LgotIFByaWNlLXRyYWNrZXIgc2l0ZXMgc3RheSByZWplY3RlZCBhcyBzb3VyY2VzIHVudGlsIHRoZXkgcHJvdmUgdGhlIHNob3duIHByaWNlIGlzIGZyZXNoLgotIE9uIHZhcmlhbnQtcGlja2VyIHBhZ2VzLCBhdmFpbGFiaWxpdHkgaXMgcGFnZS1sZXZlbCBldmlkZW5jZTsgdGhlIHJlYWRlciBjYW5ub3QgeWV0IHByb3ZlIHN0b2NrIGZvciBvbmUgZXhhY3Qgc2VsZWN0ZWQgdmFyaWFudC4KLSBTaWduZWQgd2l0aCB0aGUgc2FtZSBrZXksIHNvIGl0IGluc3RhbGxzIG92ZXIgZWFybGllciB2ZXJzaW9ucyB3aXRoIG5vIHVuaW5zdGFsbC4K' | base64 -d > /tmp/RELEASE_NOTES.md
-          gh release create v1.1.22 "build/app/outputs/flutter-apk/Lookout.apk" --target "$GITHUB_SHA" --title "Lookout 1.1.22 - Store-page price reading, 12-hour times, clearer task creation" --notes-file /tmp/RELEASE_NOTES.md
+          echo 'IyBMb29rb3V0IDEuMS4yMwoKIyMgRml4ZWQKLSBDaGVjay1ldmVyeSBpbnRlcnZhbCBidXR0b25zIGFyZSByZWFkYWJsZSBhZ2FpbjogdW5zZWxlY3RlZCBidXR0b25zIG5vdyBzaG93IGRhcmsgYmxhY2sgdGV4dCBvbiBhIGxpZ2h0IGJ1dHRvbiAodGhleSB3ZXJlIHBhbGUgZ3JleSBvbiB3aGl0ZSksIG9uIGJvdGggdGhlIGNyZWF0ZSBzY3JlZW4gYW5kIHRoZSB0YXNrIGRldGFpbHMgc2NyZWVuLCBpbiBkYXJrIGFuZCBsaWdodCB0aGVtZXMuIFRoZSBzZWxlY3RlZCBidXR0b24ga2VlcHMgaXRzIGRhcmsgYmFja2dyb3VuZCB3aXRoIHdoaXRlIHRleHQuCgojIyBOb3QgY2hhbmdlZAotIEV2ZXJ5dGhpbmcgZWxzZSBpcyBpZGVudGljYWwgdG8gMS4xLjIyLCBpbmNsdWRpbmcgaXRzIGtub3duIGxpbWl0cyAodmVyeSBsYXJnZSBwYWdlcywgc3RvcmVzIHdpdGhvdXQgYSBtYXJrZWQgbWFpbiBwcmljZSwgcHJpY2UgdHJhY2tlcnMsIHZhcmlhbnQgcGlja2VycykuCi0gU2lnbmVkIHdpdGggdGhlIHNhbWUga2V5LCBzbyBpdCBpbnN0YWxscyBvdmVyIGVhcmxpZXIgdmVyc2lvbnMgd2l0aCBubyB1bmluc3RhbGwuCg==' | base64 -d > /tmp/RELEASE_NOTES.md
+          gh release create v1.1.23 "build/app/outputs/flutter-apk/Lookout.apk" --target "$GITHUB_SHA" --title "Lookout 1.1.23 - Readable interval buttons" --notes-file /tmp/RELEASE_NOTES.md
