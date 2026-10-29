@@ -14,6 +14,7 @@ Map<String, Object?> _sellerProduct({
   Object? offeredBy,
   Object? eligibleRegion,
   Object? offerType = 'Offer',
+  Object? priceValidUntil,
   String price = '62999',
 }) => {
   '@type': 'Product',
@@ -26,8 +27,11 @@ Map<String, Object?> _sellerProduct({
     'availability': 'https://schema.org/InStock',
     if (offeredBy != null) 'offeredBy': offeredBy,
     if (eligibleRegion != null) 'eligibleRegion': eligibleRegion,
+    if (priceValidUntil != null) 'priceValidUntil': priceValidUntil,
   },
 };
+
+final _now = DateTime.utc(2026, 10, 29, 12);
 
 void main() {
   final spec = DiscoveryTaskParser.parse(
@@ -70,7 +74,38 @@ void main() {
     expect(p.spec!.storageGb, 0);
   });
 
-  test('seller offer on country ccTLD proves region without eligibleRegion', () {
+  test('merchant-own page on country ccTLD accepts without eligibleRegion', () {
+    const merchantUrl = 'https://www.amazon.in/dp/B0DVC79X2W';
+    final page = _page(
+      _sellerProduct(
+        name: variantName,
+        productUrl: merchantUrl,
+        offeredBy: {'@type': 'Organization', 'name': 'amazon.in'},
+      ),
+      merchantUrl,
+    );
+    final v = SourceCandidateValidator.validate(spec, page, now: _now);
+    expect(v, isNotNull);
+    expect(v!.price, 62999);
+    expect(v.currency, 'INR');
+    expect(v.country, 'IN');
+    expect(v.thirdPartyTracker, isFalse);
+  });
+  test('third-party tracker with a current validity date accepts and is labelled', () {
+    final page = _page(
+      _sellerProduct(
+        name: variantName,
+        offeredBy: {'@type': 'Organization', 'name': 'amazon.in'},
+        priceValidUntil: '2026-10-29',
+      ),
+      pageUrl,
+    );
+    final v = SourceCandidateValidator.validate(spec, page, now: _now);
+    expect(v, isNotNull);
+    expect(v!.thirdPartyTracker, isTrue);
+    expect(v.readingLabel, contains('tracked from amazon.in'));
+  });
+  test('third-party tracker without a validity date rejects as unverifiable', () {
     final page = _page(
       _sellerProduct(
         name: variantName,
@@ -78,11 +113,30 @@ void main() {
       ),
       pageUrl,
     );
-    final v = SourceCandidateValidator.validate(spec, page);
-    expect(v, isNotNull);
-    expect(v!.price, 62999);
-    expect(v.currency, 'INR');
-    expect(v.country, 'IN');
+    expect(SourceCandidateValidator.validate(spec, page, now: _now), isNull);
+  });
+  test('third-party tracker with a stale validity date rejects', () {
+    final page = _page(
+      _sellerProduct(
+        name: variantName,
+        offeredBy: {'@type': 'Organization', 'name': 'amazon.in'},
+        priceValidUntil: '2026-10-28',
+      ),
+      pageUrl,
+    );
+    expect(SourceCandidateValidator.validate(spec, page, now: _now), isNull);
+  });
+  test('self-link seller contradicting named seller rejects', () {
+    final page = _page(
+      _sellerProduct(
+        name: variantName,
+        productUrl: 'https://www.flipkart.com/some-s25/p/itm123',
+        offeredBy: {'@type': 'Organization', 'name': 'amazon.in'},
+        priceValidUntil: '2026-10-30',
+      ),
+      'https://www.flipkart.com/some-s25/p/itm123',
+    );
+    expect(SourceCandidateValidator.validate(spec, page, now: _now), isNull);
   });
   test('foreign storefront domain does not prove the requested country', () {
     final page = _page(
