@@ -37,11 +37,14 @@ void main() {
         currentValue: 49000,
       );
 
-  testWidgets('completed cards leave the watchlist 3h after completion; '
-      'older records without a timestamp stay', (tester) async {
+  testWidgets('completed cards leave the watchlist immediately, every time; '
+      'records stay in History', (tester) async {
     await tester.binding.setSurfaceSize(const Size(390, 2000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final repo = InMemoryAgentRepository();
+    await repo.insertAgent(
+      doneAgent('Just done', DateTime.now()),
+    );
     await repo.insertAgent(
       doneAgent('Recent done', DateTime.now().subtract(const Duration(hours: 1))),
     );
@@ -54,25 +57,21 @@ void main() {
       MaterialApp(home: HomeScreen(repo: repo, checker: checker)),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Recent done'), findsOneWidget);
+    expect(find.text('Just done'), findsNothing);
+    expect(find.text('Recent done'), findsNothing);
     expect(find.text('Old done'), findsNothing);
-    expect(find.text('Legacy done'), findsOneWidget);
+    expect(find.text('Legacy done'), findsNothing);
     // Nothing deleted: all records remain in the repository (History).
-    expect((await repo.allAgents()).length, 3);
+    expect((await repo.allAgents()).length, 4);
   });
 
-  testWidgets('a card at its 3h mark leaves while the watchlist is open; '
+  testWidgets('a just-completed card never shows on the open watchlist; '
       'history keeps its record', (tester) async {
     await tester.binding.setSurfaceSize(const Size(390, 2000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final repo = InMemoryAgentRepository();
     final id = await repo.insertAgent(
-      doneAgent(
-        'Expiring done',
-        DateTime.now()
-            .subtract(const Duration(hours: 3))
-            .add(const Duration(seconds: 2)),
-      ),
+      doneAgent('Expiring done', DateTime.now()),
     );
     await repo.logActivity(id, 'Agent completed', DateTime.now());
     final checker = AgentChecker(repo: repo, notifier: RecordingNotifier());
@@ -80,18 +79,8 @@ void main() {
       MaterialApp(home: HomeScreen(repo: repo, checker: checker)),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Expiring done'), findsOneWidget);
-    // The scheduled expiry fires without any navigation: real time crosses
-    // the 3-hour mark and the open watchlist drops the card.
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 2500)),
-    );
-    // The expiry timer lives on the widget-test clock; advance it past the
-    // scheduled fire so the open watchlist re-evaluates.
-    await tester.pump(const Duration(seconds: 3));
-    await tester.pumpAndSettle();
     expect(find.text('Expiring done'), findsNothing);
-    // History still lists the hidden card and keeps its record.
+    // History lists the completed card and keeps its record.
     await tester.pumpWidget(
       MaterialApp(home: ActivityScreen(repo: repo)),
     );
@@ -117,8 +106,8 @@ void main() {
     expect(find.text('Run now'), findsOneWidget);
   });
 
-  testWidgets('card groups long values and ghosts Run now when completed',
-      (tester) async {
+  testWidgets('legacy completed watch without a timestamp also leaves the '
+      'watchlist immediately', (tester) async {
     final repo = InMemoryAgentRepository();
     addTearDown(repo.close);
     final checker = AgentChecker(repo: repo, notifier: RecordingNotifier());
@@ -138,15 +127,10 @@ void main() {
     await tester
         .pumpWidget(MaterialApp(home: HomeScreen(repo: repo, checker: checker)));
     await tester.pumpAndSettle();
-    // Legacy completed watch (no completedAt) still shows, value grouped.
-    expect(find.text('80,199.02'), findsOneWidget);
-    expect(find.text('Run now'), findsOneWidget);
-    expect(
-      tester
-          .widget<TextButton>(find.widgetWithText(TextButton, 'Run now'))
-          .onPressed,
-      isNull,
-    );
+    // Completed tasks are removed from the watchlist right away - even
+    // records completed before the timestamp field existed.
+    expect(find.text('iPhone 15 128GB'), findsNothing);
+    expect((await repo.allAgents()).length, 1);
     expect(tester.takeException(), isNull);
   });
 }

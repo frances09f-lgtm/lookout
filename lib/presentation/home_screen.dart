@@ -36,7 +36,6 @@ class _HomeScreenState extends State<HomeScreen>
     with WidgetsBindingObserver {
   List<Agent> _agents = [];
   bool _loading = true;
-  Timer? _expiryTimer;
 
   @override
   void initState() {
@@ -51,7 +50,6 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
-    _expiryTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -62,28 +60,6 @@ class _HomeScreenState extends State<HomeScreen>
     if (state == AppLifecycleState.resumed) _refresh();
   }
 
-  /// One-shot timer at the nearest completion expiry, so a card leaves the
-  /// open watchlist at its 3-hour mark instead of waiting for a navigation.
-  void _scheduleExpiryRefresh() {
-    _expiryTimer?.cancel();
-    DateTime? nearest;
-    for (final a in _agents) {
-      if (a.status != AgentStatus.completed || a.completedAt == null) {
-        continue;
-      }
-      final expiry = a.completedAt!.add(const Duration(hours: 3));
-      if (expiry.isAfter(DateTime.now()) &&
-          (nearest == null || expiry.isBefore(nearest))) {
-        nearest = expiry;
-      }
-    }
-    if (nearest != null) {
-      _expiryTimer = Timer(nearest.difference(DateTime.now()), () {
-        if (mounted) setState(() {});
-      });
-    }
-  }
-
   Future<void> _refresh() async {
     final agents = await widget.repo.allAgents();
     if (mounted) {
@@ -91,21 +67,13 @@ class _HomeScreenState extends State<HomeScreen>
         _agents = agents;
         _loading = false;
       });
-      _scheduleExpiryRefresh();
     }
   }
 
-  /// Completed cards leave the watchlist 3 hours after completion; they stay
-  /// in History. Records completed before the timestamp existed (null) are
-  /// kept visible conservatively - no silent disappearance of old data.
-  bool _staysOnWatchlist(Agent a) {
-    if (a.status != AgentStatus.completed) return true;
-    final done = a.completedAt;
-    if (done == null) return true;
-    return DateTime.now().isBefore(
-      done.add(const Duration(hours: 3)),
-    );
-  }
+  /// Completed cards leave the watchlist the moment they complete - the
+  /// user asked for completed tasks to be removed immediately, every time.
+  /// Removing the card never deletes the record: History keeps it.
+  bool _staysOnWatchlist(Agent a) => a.status != AgentStatus.completed;
 
   int _count(AgentStatus s) => _agents
       .where(
