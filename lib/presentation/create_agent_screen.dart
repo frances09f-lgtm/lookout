@@ -663,142 +663,142 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
   }
 
   Widget _boxLabel(ThemeData theme, ColorScheme colors, String text) => Text(
-        text,
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: colors.primary,
-          letterSpacing: 1.6,
-          fontWeight: FontWeight.w700,
-        ),
-      );
+    text,
+    style: theme.textTheme.labelSmall?.copyWith(
+      color: colors.primary,
+      letterSpacing: 1.6,
+      fontWeight: FontWeight.w700,
+    ),
+  );
 
   List<Widget> _buildDescribe(ThemeData theme, ColorScheme colors) => [
-        SizedBox(
-          width: double.infinity,
-          child: TextButton(
-            onPressed: () => setState(() => _mode = _EntryMode.boxes),
-            child: const Row(
-              children: [
-                Icon(Icons.grid_view_rounded, size: 18),
-                SizedBox(width: 8),
-                Expanded(child: Text('Watch a price with boxes instead')),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'One less thing\nto keep checking.',
-          style: theme.textTheme.headlineMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-            letterSpacing: -.8,
-            height: 1.15,
-          ),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          'Describe a target or set a reminder. Review it before you create it.',
-          style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
-        ),
-        const SizedBox(height: 24),
-        Text(
-          'START WITH AN EXAMPLE',
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: colors.primary,
-            letterSpacing: 1.2,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 10),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    SizedBox(
+      width: double.infinity,
+      child: TextButton(
+        onPressed: () => setState(() => _mode = _EntryMode.boxes),
+        child: const Row(
           children: [
-            Expanded(
-              child: _ExampleTile(
-                icon: Icons.show_chart_rounded,
-                title: 'Watch a value',
-                subtitle: 'Below a target',
-                onTap: () => _controller.text = suggestions[0],
+            Icon(Icons.grid_view_rounded, size: 18),
+            SizedBox(width: 8),
+            Expanded(child: Text('Watch a price with boxes instead')),
+          ],
+        ),
+      ),
+    ),
+    const SizedBox(height: 4),
+    Text(
+      'One less thing\nto keep checking.',
+      style: theme.textTheme.headlineMedium?.copyWith(
+        fontWeight: FontWeight.w700,
+        letterSpacing: -.8,
+        height: 1.15,
+      ),
+    ),
+    const SizedBox(height: 10),
+    Text(
+      'Describe a target or set a reminder. Review it before you create it.',
+      style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
+    ),
+    const SizedBox(height: 24),
+    Text(
+      'START WITH AN EXAMPLE',
+      style: theme.textTheme.labelSmall?.copyWith(
+        color: colors.primary,
+        letterSpacing: 1.2,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+    const SizedBox(height: 10),
+    Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: _ExampleTile(
+            icon: Icons.show_chart_rounded,
+            title: 'Watch a value',
+            subtitle: 'Below a target',
+            onTap: () => _controller.text = suggestions[0],
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _ExampleTile(
+            icon: Icons.alarm_rounded,
+            title: 'Set a reminder',
+            subtitle: 'At the right time',
+            onTap: () => _controller.text = suggestions[2],
+          ),
+        ),
+      ],
+    ),
+    TextButton.icon(
+      onPressed: () => _controller.text =
+          'Check University results page contains "Results published"',
+      icon: const Icon(Icons.text_snippet_outlined),
+      label: const Text('Watch for text on a public page'),
+    ),
+    const SizedBox(height: 24),
+    Text(
+      '1  What to watch',
+      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+    ),
+    const SizedBox(height: 10),
+    TextField(
+      controller: _controller,
+      maxLines: 3,
+      decoration: const InputDecoration(
+        labelText: 'What do you want me to watch?',
+        hintText: 'Tell me when this becomes cheaper than 500',
+        alignLabelWithHint: true,
+      ),
+    ),
+    const SizedBox(height: 22),
+    Text(
+      '2  Find a source',
+      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+    ),
+    const SizedBox(height: 6),
+    Text(
+      'Just describe your task. Lookout supports exact product prices and literal text on public pages. It asks for missing details, then finds pages for you to review—not every kind of task yet.',
+      style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+    ),
+    const SizedBox(height: 10),
+    if (_reviewed != null)
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Reviewed source'),
+              Text(_reviewed!.candidate.product),
+              Text(_reviewed!.candidate.url.toString()),
+              Text(
+                '${_reviewed!.candidate.readingLabel} · read once; future reads may fail',
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _ExampleTile(
-                icon: Icons.alarm_rounded,
-                title: 'Set a reminder',
-                subtitle: 'At the right time',
-                onTap: () => _controller.text = suggestions[2],
+            ],
+          ),
+        ),
+      ),
+    if (!_isText && !_isTicket)
+      LookoutPressFeedback(
+        child: ExpansionTile(
+          title: const Text('Advanced: optional page link'),
+          children: [
+            TextField(
+              controller: _urlController,
+              keyboardType: TextInputType.url,
+              onChanged: (_) => setState(() => _reviewed = null),
+              decoration: const InputDecoration(
+                labelText: 'Page link',
+                hintText: 'https://...',
+                prefixIcon: Icon(Icons.link_rounded),
               ),
             ),
           ],
         ),
-        TextButton.icon(
-          onPressed: () => _controller.text =
-              'Check University results page contains "Results published"',
-          icon: const Icon(Icons.text_snippet_outlined),
-          label: const Text('Watch for text on a public page'),
-        ),
-        const SizedBox(height: 24),
-        Text(
-          '1  What to watch',
-          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _controller,
-          maxLines: 3,
-          decoration: const InputDecoration(
-            labelText: 'What do you want me to watch?',
-            hintText: 'Tell me when this becomes cheaper than 500',
-            alignLabelWithHint: true,
-          ),
-        ),
-        const SizedBox(height: 22),
-        Text(
-          '2  Find a source',
-          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Just describe your task. Lookout supports exact product prices and literal text on public pages. It asks for missing details, then finds pages for you to review—not every kind of task yet.',
-          style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
-        ),
-        const SizedBox(height: 10),
-        if (_reviewed != null)
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Reviewed source'),
-                  Text(_reviewed!.candidate.product),
-                  Text(_reviewed!.candidate.url.toString()),
-                  Text(
-                    '${_reviewed!.candidate.readingLabel} · read once; future reads may fail',
-                  ),
-                ],
-              ),
-            ),
-          ),
-        if (!_isText && !_isTicket)
-          LookoutPressFeedback(
-            child: ExpansionTile(
-              title: const Text('Advanced: optional page link'),
-              children: [
-                TextField(
-                  controller: _urlController,
-                  keyboardType: TextInputType.url,
-                  onChanged: (_) => setState(() => _reviewed = null),
-                  decoration: const InputDecoration(
-                    labelText: 'Page link',
-                    hintText: 'https://...',
-                    prefixIcon: Icon(Icons.link_rounded),
-                  ),
-                ),
-              ],
-            ),
-          ),
-      ];
+      ),
+  ];
 }
 
 class _ExampleTile extends StatelessWidget {
