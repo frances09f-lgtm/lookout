@@ -333,7 +333,7 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
                                     fontWeight: FontWeight.w700,
                                     color: d == _interval
                                         ? Colors.white
-                                        : theme.colorScheme.onSurfaceVariant,
+                                        : Colors.black,
                                   ),
                                   backgroundColor: d == _interval
                                       ? const Color(0xFF201A17)
