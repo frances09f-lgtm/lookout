@@ -41,7 +41,7 @@ Future<void> _seedCycles(AgentRepository repo, int id) async {
   await repo.logActivity(
       id, 'Fetched data: Product offer 2199.0 on shop.example - target 2000', t3);
   await repo.logActivity(id, 'Condition not met', t3);
-  await repo.logActivity(id, 'Next check scheduled for 24/10 21:32', t3);
+  await repo.logActivity(id, 'Next check scheduled for 24/10 9:32 PM', t3);
 }
 
 class BrokenKvRepo extends InMemoryAgentRepository {
@@ -107,7 +107,7 @@ void main() {
         'Checked 4 of 9 due tasks within the background time budget; the rest stay due for the next cycle.');
     await _shoot(t, ActivityScreen(repo: repo, agentId: id),
         'v119-status-healthy-light');
-    expect(find.textContaining('Background worker last completed: 25/10 03:17'),
+    expect(find.textContaining('Background worker last completed: 25/10 3:17 AM'),
         findsOneWidget);
     expect(find.textContaining('Checked 4 of 9 due tasks'), findsOneWidget);
   });
