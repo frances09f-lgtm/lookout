@@ -302,7 +302,7 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
                                 ? 'Condition: reviewed page contains “${DiscoveryTaskParser.parse(_controller.text).spec!.phrase}”'
                                 : 'Condition: ${p.condition == WatchCondition.lessThan ? 'below' : 'above'} ${p.target}',
                           ),
-                          const SizedBox(height: 14),
+                          const SizedBox(height: 8),
                           Text(
                             _isTicket
                                 ? TicketTaskPolicy.limitation
