@@ -28,6 +28,11 @@ class DiscoverySpec {
   /// is activated; routes later reads to quote validation, never to relax
   /// arbitrary pages.
   final bool marketQuote;
+
+  /// Persisted only after a reviewed readable-quote candidate (page without
+  /// structured data, proven by subject + currency-guided value + freshness)
+  /// is activated; routes later reads to the same readable-quote proof.
+  final bool readableQuote;
   const DiscoverySpec({
     required this.model,
     this.kind = 'productPrice',
@@ -40,6 +45,7 @@ class DiscoverySpec {
     this.reviewedProduct,
     this.colour,
     this.marketQuote = false,
+    this.readableQuote = false,
   });
   String encode() => jsonEncode({
     'model': model,
@@ -51,6 +57,7 @@ class DiscoverySpec {
     'reviewedProduct': reviewedProduct,
     'colour': colour,
     'marketQuote': marketQuote,
+    'readableQuote': readableQuote,
   });
   static DiscoverySpec forAgent(Agent agent) {
     final data = jsonDecode(agent.sourceIdentity!) as Map;
@@ -66,6 +73,7 @@ class DiscoverySpec {
       reviewedProduct: data['reviewedProduct'] as String?,
       colour: data['colour'] as String?,
       marketQuote: data['marketQuote'] as bool? ?? false,
+      readableQuote: data['readableQuote'] as bool? ?? false,
     );
   }
 
@@ -660,23 +668,14 @@ class SourceCandidateValidator {
     final h1 = doc.querySelector('h1')?.text.trim() ?? '';
     if (!_subjectNamesPage('$title $h1', spec)) return null;
     final text = PageValueFetcher.htmlToText(page.body);
-    final value = PageValueFetcher.extractValue(text);
-    if (value == null) return null;
-    final occurrences = _currencyAdjacentOccurrences(
-      text,
-      value,
-      spec.currency,
-    );
-    if (occurrences.isEmpty) return null;
-    // The page must show the quote is current: a date of today or yesterday
-    // (page timezone may sit behind the device's) near the price itself -
-    // not anywhere on the page, so a history table cannot vouch for a stale
-    // headline number.
-    if (!occurrences.any(
-      (at) => _showsCurrentDate(text, now ?? DateTime.now(), near: at),
-    )) {
-      return null;
-    }
+    // One extraction the offer, the activation re-read and every later check
+    // agree on: an FX equation row for pair subjects, or the single
+    // currency-adjacent, currently-dated amount otherwise. Signed changes,
+    // percentages, fee-labelled numbers, date/time fragments, and ambiguous
+    // or stale values reject instead of guessing.
+    final guided = _guidedQuoteValue(text, spec, now ?? DateTime.now());
+    if (guided == null) return null;
+    final value = guided.value;
     return SourceCandidate(
       url: page.finalUrl,
       product: title.isNotEmpty ? title : spec.model,
@@ -705,47 +704,167 @@ class SourceCandidateValidator {
 
   /// Every position where the number the checker will read sits next to the
   /// watched currency, so the reading is provably that price.
-  static List<int> _currencyAdjacentOccurrences(
+  /// Every position where the number the checker will read sits next to the
+  /// task currency was the 1.1.18 proof; it validated the FIRST plausible
+  /// number on the page, so pages whose first number is not the quote (fee
+  /// rows, unit counts, conversion tables) could never be proven. The guided
+  /// extraction below picks the quote itself or rejects.
+  static ({double value, int at})? _guidedQuoteValue(
     String text,
-    double value,
-    String currency,
+    DiscoverySpec spec,
+    DateTime now,
   ) {
-    const symbols = {
-      'USD': '\$',
-      'INR': '₹',
-      'EUR': '€',
-      'GBP': '£',
-      'AED': 'د.إ',
-      'AUD': '\$',
-      'CAD': '\$',
-    };
-    final whole = value.truncateToDouble() == value;
-    final formatted = value.toStringAsFixed(whole ? 0 : 2);
-    final withCommas = formatted.replaceAllMapped(
-      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
-      (m) => '${m[1]},',
+    final pair = _fxPair(spec);
+    if (pair != null) {
+      // FX: the watched unit is the quote side; an inverted page/task pair
+      // rejects instead of reading the inverse rate.
+      if (spec.currency.toUpperCase() != pair.$2) return null;
+      return _fxGuidedValue(text, pair.$1, pair.$2, now);
+    }
+    return _currencyGuidedValue(text, spec.currency, now);
+  }
+
+  /// Two currency codes in the subject name an FX pair, base first:
+  /// "USD INR rate" watches INR per 1 USD.
+  static (String, String)? _fxPair(DiscoverySpec spec) {
+    final seen = <String>[];
+    for (final m in RegExp(
+      r'\b(USD|INR|EUR|GBP|AED|AUD|CAD)\b',
+    ).allMatches(spec.model.toUpperCase())) {
+      if (!seen.contains(m.group(1)!)) seen.add(m.group(1)!);
+    }
+    return seen.length >= 2 ? (seen[0], seen[1]) : null;
+  }
+
+  /// The rate is taken only from an explicit "1 BASE = value QUOTE" equation
+  /// row, so split-digit headlines and bulk conversion rows cannot be misread;
+  /// exactly one distinct equation value with a current date near it proves.
+  static ({double value, int at})? _fxGuidedValue(
+    String text,
+    String base,
+    String quote,
+    DateTime now,
+  ) {
+    final rx = RegExp(
+      '(?<![0-9.])1(?:\\.0+)?(?![0-9.])\\s+$base\\s*=?\\s*'
+      '([0-9][0-9,]*(?:\\.[0-9]+)?)\\s+$quote(?![A-Z])',
+      caseSensitive: false,
     );
-    final found = <int>[];
-    for (final rendered in {formatted, withCommas}) {
-      var from = 0;
-      while (true) {
-        final i = text.indexOf(rendered, from);
-        if (i < 0) break;
-        final a = i - 40 < 0 ? 0 : i - 40;
-        final b = i + rendered.length + 40 > text.length
+    final values = <double, int>{};
+    for (final m in rx.allMatches(text)) {
+      final v = double.tryParse(m.group(1)!.replaceAll(',', ''));
+      if (v == null || v <= 0 || v > 1000000000) continue;
+      values[v] ??= m.start;
+    }
+    if (values.length != 1) return null;
+    final e = values.entries.single;
+    if (!_showsCurrentDate(text, now, near: e.value)) return null;
+    return (value: e.key, at: e.value);
+  }
+
+  /// The single amount adjacent to the currency CODE (symbols are shared
+  /// across currencies, so only the code proves the unit). Signed changes,
+  /// percentages, fee-labelled numbers and date/time fragments are excluded;
+  /// when several distinct amounts remain, exactly one may carry a current
+  /// date near it, otherwise the page is ambiguous and rejects.
+  static ({double value, int at})? _currencyGuidedValue(
+    String text,
+    String currency,
+    DateTime now,
+  ) {
+    final code = currency.toUpperCase();
+    final codeRx = RegExp('\\b$code\\b');
+    final numRx = RegExp(r'[0-9][0-9,]*(?:\.[0-9]+)?');
+    final candidates = <double, int>{};
+    for (final m in codeRx.allMatches(text)) {
+      final a = m.start - 40 < 0 ? 0 : m.start - 40;
+      final b = m.end + 40 > text.length ? text.length : m.end + 40;
+      for (final nm in numRx.allMatches(text.substring(a, b))) {
+        final pos = a + nm.start;
+        final raw = nm.group(0)!;
+        final v = double.tryParse(raw.replaceAll(',', ''));
+        if (v == null || v <= 0 || v > 1000000000) continue;
+        // A market quote on these pages always carries decimals; whole
+        // numbers are counters, karat labels or date/time fragments.
+        if (!raw.contains('.')) continue;
+        // The value names its own unit: the currency code must follow it
+        // within a few characters ("$4,022.28 USD"). Unit tables whose
+        // header carries the code ("Price in USD" over gram/tola rows)
+        // and narrative figures cannot satisfy this.
+        final gapEnd = pos + raw.length + 12 > text.length
             ? text.length
-            : i + rendered.length + 40;
-        final window = text.substring(a, b);
-        final symbol = symbols[currency];
-        if (window.toUpperCase().contains(currency) ||
-            (symbol != null && window.contains(symbol))) {
-          found.add(i);
-          break;
+            : pos + raw.length + 12;
+        if (!codeRx.hasMatch(text.substring(pos + raw.length, gapEnd))) {
+          continue;
         }
-        from = i + 1;
+        if (_excludedNumber(text, pos, raw)) continue;
+        candidates[v] ??= pos;
       }
     }
-    return found;
+    if (candidates.isEmpty) return null;
+    final fresh = candidates.entries
+        .where((e) => _showsCurrentDate(text, now, near: e.value))
+        .toList();
+    final freshValues = fresh.map((e) => e.key).toSet();
+    if (freshValues.length == 1) {
+      return (value: freshValues.single, at: fresh.first.value);
+    }
+    return null;
+  }
+
+  static bool _excludedNumber(String text, int pos, String raw) {
+    final before = text.substring(pos - 24 < 0 ? 0 : pos - 24, pos);
+    // Signed change figures ("$-0.96", "+12").
+    if (RegExp(r'[-+]\s*\$?\s*$').hasMatch(before)) return true;
+    // Fee/tax/shipping/MRP-style labels are not the quote.
+    if (RegExp(
+      r'(fee|fees|shipping|tax|taxes|mrp|premium|commission|charge|charges)'
+      r'\s*:?\s*(?:\$|\u20B9)?\s*$',
+      caseSensitive: false,
+    ).hasMatch(before)) {
+      return true;
+    }
+    // Change amounts, not the quote ("decrease of $2.59", "rose 12.5").
+    if (RegExp(
+      r'(increase|decrease|change|gain|loss|rise|rose|fall|fell|drop|grew)'
+      r'[a-z]*\b[^0-9]{0,16}$',
+      caseSensitive: false,
+    ).hasMatch(before)) {
+      return true;
+    }
+    // Percentages ("-1.76%").
+    final after = text.substring(
+      pos,
+      pos + raw.length + 12 > text.length ? text.length : pos + raw.length + 12,
+    );
+    if (after.contains('%')) return true;
+    // Date/time fragments: years, "29-OCT-2026" parts, "04:55" parts.
+    if (RegExp(r'^(19|20)[0-9][0-9]$').hasMatch(raw)) return true;
+    final immAfter = text.substring(
+      pos + raw.length,
+      pos + raw.length + 1 > text.length ? text.length : pos + raw.length + 1,
+    );
+    if (RegExp(r'^[-/:]').hasMatch(immAfter)) return true;
+    final immBefore = text.substring(pos - 1 < 0 ? 0 : pos - 1, pos);
+    if (RegExp(r'[-/:]$').hasMatch(immBefore)) return true;
+    // Fragment of a larger number cut by the scan window (".15", ",069").
+    if (immBefore == '.' || immBefore == ',') return true;
+    // HTML entity residue ("&#9660;").
+    if (before.endsWith('&#') || before.endsWith('&')) return true;
+    // Unit suffixes ("7D", "30D", "1Y", "24K").
+    final immAfter1 = text.substring(
+      pos + raw.length,
+      pos + raw.length + 1 > text.length ? text.length : pos + raw.length + 1,
+    );
+    if (RegExp(r'^[A-Za-z]').hasMatch(immAfter1)) return true;
+    // Calendar fragments ("October 29", "Oct 29") - a date is not the quote.
+    if (RegExp(
+      r'(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s*$',
+      caseSensitive: false,
+    ).hasMatch(before)) {
+      return true;
+    }
+    return false;
   }
 
   /// A live quote page shows when its quote is from. Accept a visible date
@@ -1299,6 +1418,8 @@ class ReviewedSource {
     currency: spec.currency,
     reviewedProduct: candidate.product,
     colour: spec.colour,
+    marketQuote: candidate.marketQuote,
+    readableQuote: candidate.readableQuote,
   ).encode();
 }
 
@@ -1319,9 +1440,17 @@ class DiscoveredSourceReader {
           'The saved source address changed; review it again',
         );
       }
-      final value = spec.marketQuote
+      // The readable tier returns null whenever a stricter validation passes,
+      // so this order never relaxes a page; the fallback chain covers sources
+      // saved before the routing flags were persisted.
+      var value = spec.readableQuote
+          ? SourceCandidateValidator.validateReadableQuote(spec, page)
+          : spec.marketQuote
           ? SourceCandidateValidator.validateQuote(spec, page)
           : SourceCandidateValidator.validate(spec, page);
+      value ??= SourceCandidateValidator.validate(spec, page) ??
+          SourceCandidateValidator.validateQuote(spec, page) ??
+          SourceCandidateValidator.validateReadableQuote(spec, page);
       if (value == null) {
         return FetchOutcome.failed(
           'The reviewed source and current evidence could not be verified on its page',
