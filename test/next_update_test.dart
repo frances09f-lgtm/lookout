@@ -139,7 +139,7 @@ void main() {
         expect(messages, isNot(contains('Condition not met')));
         expect(messages.any((m) => m.startsWith('Fetched data:')), false);
         expect(
-          messages.any((m) => m.startsWith('Next check scheduled')),
+          messages.any((m) => m.startsWith('Next check due from')),
           false,
         );
         expect((await checker.checkDueAgents()).checked, 0);
@@ -181,7 +181,7 @@ void main() {
     final logs = (await repo.activityFor(id)).map((e) => e.message);
     expect(logs, isNot(contains('Condition not met')));
     expect(logs.any((m) => m.startsWith('Fetched data:')), false);
-    expect(logs.any((m) => m.startsWith('Read retry scheduled')), true);
+    expect(logs.any((m) => m.startsWith('Read retry due from')), true);
     valid = true;
     final good = await checker.checkAgent(stored);
     expect(good.evaluated, true);

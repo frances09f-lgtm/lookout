@@ -36,7 +36,7 @@ Future<void> _seed(AgentRepository repo, int id) async {
   await repo.logActivity(
       id, 'Fetched data: Product offer 2199.0 on shop.example - target 2000', t3);
   await repo.logActivity(id, 'Condition not met', t3);
-  await repo.logActivity(id, 'Next check scheduled for 21/10 15:32', t3);
+  await repo.logActivity(id, 'Next check due from 21/10 15:32', t3);
   final t4 = DateTime(2026, 10, 21, 15, 32);
   await repo.logActivity(id, 'Started check', t4);
   await repo.logActivity(
@@ -97,7 +97,7 @@ void main() {
       expect(find.text('Condition met'), findsOneWidget);
       expect(find.text('DONE'), findsOneWidget);
       // The state line is not duplicated inside its own card.
-      expect(find.text('Next check scheduled for 21/10 15:32'), findsOneWidget);
+      expect(find.text('Next check due from 21/10 15:32'), findsOneWidget);
       expect(find.text('Read retry scheduled for 21/10 19:10'), findsOneWidget);
       expect(find.text('Notification sent'), findsOneWidget);
       expect(find.text('Agent completed'), findsOneWidget);

@@ -693,7 +693,7 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                       ? 'Waiting for a confirmed source'
                       : a.nextCheckAt == null
                       ? '-'
-                      : _fmtTime(a.nextCheckAt!),
+                      : 'Due from ${_fmtTime(a.nextCheckAt!)}',
                 ),
                 if (a.type == AgentType.valueWatch) ...[
                   const SizedBox(height: 4),

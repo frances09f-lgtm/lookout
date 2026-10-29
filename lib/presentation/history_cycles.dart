@@ -111,9 +111,11 @@ class HistoryCycle {
         out.add(
           CycleStep(m.substring('Unable to check: '.length), CycleStepKind.value),
         );
-      } else if (m.startsWith('Next check scheduled')) {
+      } else if (m.startsWith('Next check due') ||
+          m.startsWith('Next check scheduled')) {
         out.add(CycleStep(m, CycleStepKind.next));
-      } else if (m.startsWith('Read retry scheduled')) {
+      } else if (m.startsWith('Read retry due') ||
+          m.startsWith('Read retry scheduled')) {
         out.add(CycleStep(m, CycleStepKind.retry));
       } else if (m.startsWith('Fetched data') ||
           m.startsWith('Clock checked') ||

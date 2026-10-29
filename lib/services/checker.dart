@@ -304,7 +304,7 @@ class AgentChecker {
     } else if (!updated.sourceBlocked) {
       await repo.logActivity(
         id,
-        '${evaluated ? 'Next check' : 'Read retry'} scheduled for ${_fmtTime(at.add(agent.checkInterval))}',
+        '${evaluated ? 'Next check' : 'Read retry'} due from ${_fmtTime(at.add(agent.checkInterval))}',
         at,
       );
     }

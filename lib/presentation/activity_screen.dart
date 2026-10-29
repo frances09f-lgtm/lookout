@@ -153,7 +153,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
     final nextLine = next == null
         ? 'no check scheduled'
         : (next.isAfter(DateTime.now())
-            ? 'next check scheduled for ${fmtHistoryTime(next)}'
+            ? 'next check due from ${fmtHistoryTime(next)}'
             : 'due for a check now');
     return 'Checks $every · $nextLine';
   }
@@ -182,6 +182,14 @@ class _ActivityScreenState extends State<ActivityScreen> {
                     _scheduleLine(agent),
                     style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
                   ),
+                  if (agent.checkInterval < const Duration(minutes: 15) &&
+                      agent.nextCheckAt != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Background checks may run later than the due time.',
+                      style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                    ),
+                  ],
                 ] else if (snap.hasError) ...[
                   const SizedBox(height: 4),
                   Text(

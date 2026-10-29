@@ -107,7 +107,7 @@ void main() {
     final log = await repo.activityFor(id);
     expect(
       log.map((e) => e.message),
-      contains(contains('Read retry scheduled')),
+      contains(contains('Read retry due from')),
     );
   });
 
