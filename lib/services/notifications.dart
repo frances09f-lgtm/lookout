@@ -35,12 +35,20 @@ class LocalNotificationsService implements LookoutNotifier {
         }
       },
     );
-    // Android 13+ runtime permission.
+    // Android 13+ runtime permission. The plugin call needs an activity;
+    // in a headless or half-attached start it throws a PlatformException
+    // (the 25 Oct crash: checkPermission on a null Context). Asking is
+    // best-effort - notifications.init must never fail over it.
     if (requestPermission) {
-      await _plugin
-          .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
-          ?.requestNotificationsPermission();
+      try {
+        await _plugin
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>()
+            ?.requestNotificationsPermission();
+      } catch (_) {
+        // No activity to attach the prompt to; the next foreground start
+        // asks again.
+      }
     }
   }
 
