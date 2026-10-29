@@ -174,14 +174,15 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
           return;
         }
       }
-      await widget.repo.insertAgent(
+      final createdAt = DateTime.now();
+      final newId = await widget.repo.insertAgent(
         Agent(
           title: p.title,
           originalPrompt: _controller.text.trim(),
           type: p.type!,
           status: AgentStatus.active,
-          createdAt: DateTime.now(),
-          nextCheckAt: DateTime.now(),
+          createdAt: createdAt,
+          nextCheckAt: createdAt,
           checkInterval: _interval,
           condition: p.condition!,
           target: p.target!,
@@ -189,7 +190,12 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
           sourceIdentity: _reviewed?.identity,
         ),
       );
-      if (mounted) Navigator.of(context).pop();
+      // Every task's history starts at its creation, so no later list can
+      // show activity that looks older than the task itself.
+      await widget.repo.logActivity(newId, 'Task created', createdAt);
+      // Pop with a result so the caller confirms the creation out loud -
+      // a silent return once let a failed create look identical to a saved one.
+      if (mounted) Navigator.of(context).pop(true);
     } finally {
       if (mounted) setState(() => _creating = false);
     }
