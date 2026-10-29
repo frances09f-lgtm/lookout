@@ -53,7 +53,7 @@ void main() {
     );
     await t.pumpAndSettle();
     expect(find.textContaining('Browser read (user started)'), findsOneWidget);
-    expect(find.textContaining('Last successful read: 7/10 23:40'), findsOneWidget);
+    expect(find.textContaining('Last successful read: 7/10 11:40 PM'), findsOneWidget);
     expect(t.takeException(), isNull);
     await t.runAsync(() async {
       final im =
