@@ -43,7 +43,7 @@ jobs:
         run: |
           cat > /tmp/parse_tests.py <<'PYEOF'
           import json
-          names, failed = {}, []
+          names, failed, errs = {}, [], {}
           for line in open('/tmp/test-output.jsonl', errors='replace'):
               line = line.strip()
               if not line.startswith('{'):
@@ -52,17 +52,25 @@ jobs:
                   e = json.loads(line)
               except Exception:
                   continue
-              if e.get('type') == 'testStart':
+              t = e.get('type')
+              if t == 'testStart':
                   names[e['test']['id']] = e['test'].get('name', '?')
-              elif e.get('type') == 'testDone' and e.get('result') == 'failure':
-                  failed.append(names.get(e.get('testID'), '?'))
-              elif e.get('type') == 'error':
-                  failed.append('ERROR: ' + str(e.get('error', ''))[:200])
+              elif t == 'testDone' and e.get('result') != 'success':
+                  tid = e.get('testID')
+                  failed.append(names.get(tid, '?') + ' [result=' + str(e.get('result')) + '] :: ' + errs.get(tid, ''))
+              elif t == 'error':
+                  tid = e.get('testID')
+                  msg = (str(e.get('error', '')) + ' | ' + str(e.get('stackTrace', ''))[:300])[:400]
+                  if tid is None:
+                      failed.append('UNATTRIBUTED ERROR: ' + msg)
+                  else:
+                      errs[tid] = msg
           for f in failed[:10]:
               print('::error::FAILED DETERMINISTIC TEST: ' + f)
           if not failed:
               print('::error::gate failed but no failing test parsed from json reporter')
           PYEOF
+
       - name: Annotate failing deterministic tests
         if: failure()
         run: |
