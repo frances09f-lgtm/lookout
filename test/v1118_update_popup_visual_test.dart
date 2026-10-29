@@ -48,7 +48,7 @@ class _FeedClient extends http.BaseClient {
 }
 
 void main() {
-  testWidgets('v1.1.19 update dialog renders the live feed', (t) async {
+  testWidgets('v1.1.20 update dialog renders the live feed', (t) async {
     String liveBody = '';
     await t.runAsync(() async {
       await Directory('/tmp/lookout-shots').create(recursive: true);
@@ -59,7 +59,7 @@ void main() {
       expect(r.statusCode, 200);
       liveBody = r.body;
       final v = jsonDecode(liveBody)['lookout']['version'];
-      expect(v, '1.1.19');
+      expect(v, '1.1.20');
     });
     SharedPreferences.setMockInitialValues({});
     debugRunUpdateChecksInTests = true;
@@ -96,7 +96,7 @@ void main() {
     await t.tap(find.text('Check for updates'));
     await t.pump();
     await t.pump(const Duration(milliseconds: 800));
-    expect(find.text('Lookout 1.1.19 is available'), findsOneWidget);
+    expect(find.text('Lookout 1.1.20 is available'), findsOneWidget);
     await t.runAsync(() => _shot(rootKey, 'v1118-dialog-light'));
     await t.tap(find.text('Later'));
     await t.pump();
@@ -106,7 +106,7 @@ void main() {
     await t.tap(find.text('Check for updates'));
     await t.pump();
     await t.pump(const Duration(milliseconds: 800));
-    expect(find.text('Lookout 1.1.19 is available'), findsOneWidget);
+    expect(find.text('Lookout 1.1.20 is available'), findsOneWidget);
     await t.runAsync(() => _shot(rootKey, 'v1118-dialog-dark'));
   });
 }
