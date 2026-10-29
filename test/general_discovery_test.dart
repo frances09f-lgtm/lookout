@@ -72,7 +72,21 @@ void main() {
   ]) {
     test('exact structured product price: $item', () async {
       final spec = price(item);
-      expect(spec.model, item);
+      // Storage sizes parse out of the model into storageGb.
+      final expectedModel = item
+          .replaceAll(RegExp(r'\s*\d+\s*(GB|TB)\b', caseSensitive: false), '')
+          .trim();
+      expect(spec.model, expectedModel);
+      expect(
+        spec.storageGb,
+        RegExp(r'\d+\s*(GB|TB)\b', caseSensitive: false).hasMatch(item)
+            ? int.parse(
+                RegExp(r'(\d+)\s*(GB|TB)\b', caseSensitive: false)
+                    .firstMatch(item)!
+                    .group(1)!,
+              )
+            : 0,
+      );
       final result = await SourceDiscoveryService(
         searchProvider: h.FakeSearch(),
         pageReader: h.FakeReader(h.fixture(name: item, price: 24000)),
@@ -96,6 +110,80 @@ void main() {
       expect((await repo.agentById(id))!.status, AgentStatus.completed);
     });
   }
+  test('generic product identity: real page names match, variants do not', () {
+    final spec = price('Samsung Galaxy S25 256GB');
+    expect(spec.model, 'Samsung Galaxy S25');
+    expect(spec.storageGb, 256);
+    // Real merchant names carry extra tokens the old exact-equality rule
+    // rejected, which made every non-iPhone search fail closed.
+    expect(
+      SourceCandidateValidator.validate(
+        spec,
+        h.fixture(name: 'Samsung Galaxy S25 5G (12GB RAM + 256GB Storage) Mint'),
+      ),
+      isNotNull,
+    );
+    expect(
+      SourceCandidateValidator.validate(
+        spec,
+        h.fixture(name: 'Samsung Galaxy S25 5G 256GB Icyblue'),
+      ),
+      isNotNull,
+    );
+    // Different variants and sizes still reject.
+    expect(
+      SourceCandidateValidator.validate(
+        spec,
+        h.fixture(name: 'Samsung Galaxy S25 Ultra 256GB'),
+      ),
+      isNull,
+    );
+    expect(
+      SourceCandidateValidator.validate(
+        spec,
+        h.fixture(name: 'Samsung Galaxy S25 FE 256GB'),
+      ),
+      isNull,
+    );
+    expect(
+      SourceCandidateValidator.validate(
+        spec,
+        h.fixture(name: 'Samsung Galaxy S25 5G (8GB RAM + 128GB Storage)'),
+      ),
+      isNull,
+    );
+    expect(
+      SourceCandidateValidator.validate(
+        spec,
+        h.fixture(name: 'Samsung Galaxy S25+ 256GB'),
+      ),
+      isNull,
+    );
+    expect(
+      SourceCandidateValidator.validate(
+        spec,
+        h.fixture(name: 'Samsung Galaxy S25 Silicone Case 256GB'),
+      ),
+      isNull,
+    );
+    // A page silent on storage cannot prove the variant.
+    expect(
+      SourceCandidateValidator.validate(
+        spec,
+        h.fixture(name: 'Samsung Galaxy S25 5G'),
+      ),
+      isNull,
+    );
+    // The task's own words are not accessory markers.
+    final charger = price('Acme USB Charger');
+    expect(
+      SourceCandidateValidator.validate(
+        charger,
+        h.fixture(name: 'Acme USB Charger'),
+      ),
+      isNotNull,
+    );
+  });
   test('generic product identity is exact: no Ultra substitution, missing country, out of stock or aggregate range', () {
     final spec = price('Samsung Galaxy S25 256GB');
     expect(
