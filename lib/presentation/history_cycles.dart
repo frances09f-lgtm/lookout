@@ -7,6 +7,7 @@
 import 'package:flutter/material.dart';
 
 import '../domain/activity.dart';
+import '../domain/time_format.dart';
 import 'expressive.dart';
 
 /// Groups activity entries (already filtered to one task) into cycles.
@@ -25,8 +26,7 @@ List<HistoryCycle> groupHistoryCycles(List<ActivityEntry> items) {
   ];
 }
 
-String fmtHistoryTime(DateTime t) =>
-    '${t.day}/${t.month} ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+String fmtHistoryTime(DateTime t) => fmtAppTime(t);
 
 /// The honest outcome of one check cycle, derived only from what was logged.
 enum CycleState { updated, noResult, failed, notMet, met }
@@ -38,6 +38,11 @@ class HistoryCycle {
   DateTime get at => entries.first.timestamp;
 
   bool _has(String prefix) => entries.any((e) => e.message.startsWith(prefix));
+
+  /// The single entry written when the task is inserted. It is not an edit
+  /// and not a check, so it gets its own title and badge.
+  bool get _isCreation =>
+      entries.length == 1 && entries.first.message == 'Task created';
 
   /// Lines only an actual check run writes. Their absence means the group
   /// is an edit/save event, not a check - never render one as the other.
@@ -67,21 +72,27 @@ class HistoryCycle {
       _has('Started check') &&
       DateTime.now().difference(at).inMinutes > 2;
 
-  String get title => switch (state) {
+  String get title {
+    if (_isCreation) return 'Task created';
+    return switch (state) {
     CycleState.updated => 'Task updated',
     CycleState.failed => 'Unable to check',
     CycleState.met => 'Condition met',
     CycleState.notMet => 'Condition not met',
     CycleState.noResult => 'Started check',
-  };
+    };
+  }
 
-  String get badge => switch (state) {
+  String get badge {
+    if (_isCreation) return 'Created';
+    return switch (state) {
     CycleState.updated => 'Saved',
     CycleState.failed => 'Failed',
     CycleState.met => 'Done',
     CycleState.notMet => 'Not yet',
     CycleState.noResult => 'No result',
-  };
+    };
+  }
 
   (Color, Color) get colors => switch (state) {
     CycleState.updated => (XColors.sky, XColors.skyDeep),
@@ -91,13 +102,16 @@ class HistoryCycle {
     CycleState.noResult => (XColors.lavender, XColors.lavenderDeep),
   };
 
-  IconData get icon => switch (state) {
+  IconData get icon {
+    if (_isCreation) return Icons.add_circle_outline;
+    return switch (state) {
     CycleState.updated => Icons.edit_outlined,
     CycleState.failed => Icons.warning_amber_rounded,
     CycleState.met => Icons.check_circle_outline,
     CycleState.notMet => Icons.check,
     CycleState.noResult => Icons.bolt,
-  };
+    };
+  }
 
   /// Log lines shown inside the card. The state line itself is dropped (the
   /// title and badge already say it); its detail is kept without the prefix.
@@ -106,6 +120,7 @@ class HistoryCycle {
     for (final e in entries) {
       final m = e.message;
       if (m == 'Condition met' || m == 'Condition not met') continue;
+      if (m == 'Task created') continue;
       if (m == 'Started check' && state == CycleState.noResult) continue;
       if (m.startsWith('Unable to check: ')) {
         out.add(
