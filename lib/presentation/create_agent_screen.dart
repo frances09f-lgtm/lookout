@@ -347,6 +347,14 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
                                                 Brightness.dark
                                             ? Colors.white
                                             : const Color(0xFFEFE9E1)),
+                                  // Visible border in every state: the
+                                  // unselected light chips floated on the
+                                  // card with no edge definition.
+                                  side: BorderSide(
+                                    color: d == _interval
+                                        ? const Color(0xFF6E675F)
+                                        : const Color(0xFF8A8178),
+                                  ),
                                   onPressed: () =>
                                       setState(() => _interval = d),
                                 ),
@@ -355,9 +363,11 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          '5 and 10 minutes only while the app is open. '
-                          'Closed-app background checks need at least 15 '
-                          'minutes on Android.',
+                          '5 and 10-minute checks are attempted while the '
+                          'app is open. Exact-alarm permission enables '
+                          'closed-app attempts; Android may delay them. '
+                          'Without it, background checks use a minimum '
+                          '15-minute interval.',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: colors.onSurfaceVariant,
                           ),

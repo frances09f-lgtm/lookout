@@ -1,8 +1,11 @@
 package com.ambi.lookout
 
+import android.app.AlarmManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import java.io.File
@@ -25,6 +28,7 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         registerUpdateChannel(flutterEngine)
+        registerAlarmChannel(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "lookout/browser").setMethodCallHandler { call, result ->
             if (call.method != "readBookMyShow") { result.notImplemented(); return@setMethodCallHandler }
             val url = call.argument<String>("url") ?: ""
@@ -162,6 +166,46 @@ class MainActivity : FlutterActivity() {
                             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         startActivity(intent)
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+    // Exact-alarm engine support: permission state + system settings
+    // deep-links the Dart side cannot reach through the plugins.
+    private fun registerAlarmChannel(flutterEngine: FlutterEngine) {
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "lookout/alarms")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "canScheduleExactAlarms" -> {
+                        val ok = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+                            (getSystemService(Context.ALARM_SERVICE) as AlarmManager)
+                                .canScheduleExactAlarms()
+                        result.success(ok)
+                    }
+                    "openExactAlarmSettings" -> {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            startActivity(
+                                Intent(
+                                    Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                                    Uri.parse("package:$packageName")
+                                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        }
+                        result.success(null)
+                    }
+                    "isIgnoringBatteryOptimizations" -> {
+                        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+                        result.success(pm.isIgnoringBatteryOptimizations(packageName))
+                    }
+                    "openBatteryOptimizationSettings" -> {
+                        startActivity(
+                            Intent(
+                                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                Uri.parse("package:$packageName")
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
                         result.success(null)
                     }
                     else -> result.notImplemented()

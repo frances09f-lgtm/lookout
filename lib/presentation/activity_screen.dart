@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../data/agent_repository.dart';
 import '../domain/activity.dart';
 import '../domain/agent.dart';
+import '../services/alarm_engine.dart';
 import '../services/background.dart';
 
 /// A task chooser, or the history of exactly one persisted task ID.
@@ -26,6 +27,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
   late Future<List<ActivityEntry>> _activity;
   late Future<Agent?> _agent;
   late Future<_BackgroundStatus> _backgroundStatus;
+  late Future<({bool? exact, bool? battery})> _alarmStatus;
 
   @override
   void initState() {
@@ -51,6 +53,9 @@ class _ActivityScreenState extends State<ActivityScreen> {
     _backgroundStatus = id == null
         ? Future.value(const _BackgroundStatus())
         : _loadBackgroundStatus();
+    _alarmStatus = id == null
+        ? Future.value((exact: true, battery: true))
+        : _loadAlarmStatus();
   }
 
   /// Worker liveness from the kv store, falling back to the
@@ -89,6 +94,23 @@ class _ActivityScreenState extends State<ActivityScreen> {
       note: (note == null || note.isEmpty) ? null : note,
       readError: readError,
     );
+  }
+
+  /// Exact-alarm engine grant states, loaded independently of the worker
+  /// status: a wedged native channel must never hide the worker's own
+  /// liveness line. On host tests there is no engine, so this future is
+  /// simply never completed there and the line stays hidden.
+  Future<({bool? exact, bool? battery})> _loadAlarmStatus() async {
+    try {
+      // No .timeout here: the FutureBuilder tolerates a never-completing
+      // future (the line just stays hidden), while a timeout timer would
+      // outlive the widget under test bindings.
+      final exact = await AlarmPermissions.canScheduleExactAlarms();
+      final battery = await AlarmPermissions.isIgnoringBatteryOptimizations();
+      return (exact: exact, battery: battery);
+    } catch (_) {
+      return (exact: null, battery: null);
+    }
   }
 
   @override
@@ -265,6 +287,17 @@ class _ActivityScreenState extends State<ActivityScreen> {
                 if (st.error != null) WorkerProblemLine(raw: st.error!),
               ],
             ),
+          );
+        },
+      ),
+      FutureBuilder<({bool? exact, bool? battery})>(
+        key: ValueKey('history-alarm-engine-$id'),
+        future: _alarmStatus,
+        builder: (context, snap) {
+          if (!snap.hasData) return const SizedBox.shrink();
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            child: _alarmEngineLine(context, snap.data!),
           );
         },
       ),
@@ -476,6 +509,55 @@ String _redactDiagnostic(String raw, {int max = 300}) {
 }
 
 /// Snapshot of worker liveness for the history screen.
+/// Exact-alarm engine status with its one-time setup actions (prototype).
+Widget _alarmEngineLine(BuildContext context, ({bool? exact, bool? battery}) st) {
+  final scheme = Theme.of(context).colorScheme;
+  if (st.exact == null) {
+    // Native check unavailable: show nothing rather than mislabel the
+    // engine's state.
+    return const SizedBox.shrink();
+  }
+  if (st.exact! && (st.battery ?? false)) {
+    return Text(
+      'On-time checks (exact alarms): on.',
+      style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+    );
+  }
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        'On-time checks (exact alarms): off - closed-app checks use the '
+        '15-minute background minimum until allowed.',
+        style: TextStyle(fontSize: 12, color: scheme.error),
+      ),
+      Wrap(
+        spacing: 8,
+        children: [
+          if (!st.exact!)
+            TextButton(
+              key: const Key('grant-exact-alarms'),
+              onPressed: () async {
+                await AlarmPermissions.openExactAlarmSettings();
+              },
+              child: const Text('Allow alarms & reminders',
+                  style: TextStyle(fontSize: 12)),
+            ),
+          if (!(st.battery ?? false))
+            TextButton(
+              key: const Key('grant-battery-exemption'),
+              onPressed: () async {
+                await AlarmPermissions.openBatteryOptimizationSettings();
+              },
+              child: const Text('Allow background battery use',
+                  style: TextStyle(fontSize: 12)),
+            ),
+        ],
+      ),
+    ],
+  );
+}
+
 class _BackgroundStatus {
   final DateTime? started;
   final DateTime? completed;
