@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 
 import '../data/agent_repository.dart';
 import '../domain/agent.dart';
+import '../domain/time_format.dart';
 import '../services/checker.dart';
 import 'activity_screen.dart';
 import 'agent_details_screen.dart';
@@ -84,10 +85,18 @@ class _HomeScreenState extends State<HomeScreen>
       .length;
 
   Future<void> _createAgent() async {
-    await Navigator.of(context).push(
+    final created = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => CreateAgentScreen(repo: widget.repo)),
     );
     _refresh();
+    // Creation is confirmed explicitly: the create flow can also end with
+    // no task (review abandoned, revalidation failed), and the two endings
+    // must not look alike.
+    if (created == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Task created')),
+      );
+    }
   }
 
   Future<void> _openActivity() async {
@@ -539,6 +548,5 @@ class AgentCard extends StatelessWidget {
     return '${neg ? '-' : ''}$grouped${dot < 0 ? '' : text.substring(dot)}';
   }
 
-  static String _fmt(DateTime t) =>
-      '${t.day}/${t.month} ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+  static String _fmt(DateTime t) => fmtAppTime(t);
 }
