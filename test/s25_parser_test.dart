@@ -91,40 +91,22 @@ void main() {
     expect(v.country, 'IN');
     expect(v.thirdPartyTracker, isFalse);
   });
-  test('third-party tracker with a current validity date accepts and is labelled', () {
-    final page = _page(
-      _sellerProduct(
-        name: variantName,
-        offeredBy: {'@type': 'Organization', 'name': 'amazon.in'},
-        priceValidUntil: '2026-10-29',
-      ),
-      pageUrl,
-    );
-    final v = SourceCandidateValidator.validate(spec, page, now: _now);
-    expect(v, isNotNull);
-    expect(v!.thirdPartyTracker, isTrue);
-    expect(v.readingLabel, contains('tracked from amazon.in'));
-  });
-  test('third-party tracker without a validity date rejects as unverifiable', () {
-    final page = _page(
-      _sellerProduct(
-        name: variantName,
-        offeredBy: {'@type': 'Organization', 'name': 'amazon.in'},
-      ),
-      pageUrl,
-    );
-    expect(SourceCandidateValidator.validate(spec, page, now: _now), isNull);
-  });
-  test('third-party tracker with a stale validity date rejects', () {
-    final page = _page(
-      _sellerProduct(
-        name: variantName,
-        offeredBy: {'@type': 'Organization', 'name': 'amazon.in'},
-        priceValidUntil: '2026-10-28',
-      ),
-      pageUrl,
-    );
-    expect(SourceCandidateValidator.validate(spec, page, now: _now), isNull);
+  test('third-party tracker pages reject until freshness is grounded', () {
+    for (final until in [null, '2026-10-28', '2026-10-29', '2027-01-01']) {
+      final page = _page(
+        _sellerProduct(
+          name: variantName,
+          offeredBy: {'@type': 'Organization', 'name': 'amazon.in'},
+          priceValidUntil: until,
+        ),
+        pageUrl,
+      );
+      expect(
+        SourceCandidateValidator.validate(spec, page, now: _now),
+        isNull,
+        reason: 'tracker claim must reject regardless of validity date',
+      );
+    }
   });
   test('self-link seller contradicting named seller rejects', () {
     final page = _page(
