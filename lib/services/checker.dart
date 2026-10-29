@@ -12,6 +12,7 @@ import '../data/agent_repository.dart';
 import '../domain/agent.dart';
 import '../domain/time_format.dart';
 import '../domain/ticket_task.dart';
+import 'alarm_engine.dart';
 import 'notifications.dart';
 import 'page_fetch.dart';
 import 'source_discovery.dart';
@@ -310,6 +311,9 @@ class AgentChecker {
       );
     }
     await repo.updateAgent(updated);
+    // Keep the exact-alarm chain pointed at the earliest due check.
+    // Fire-and-forget: scheduling must never fail a completed check.
+    rescheduleCheckAlarm(repo: repo);
     return CheckResult(met, detail, evaluated: evaluated);
   }
 

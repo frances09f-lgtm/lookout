@@ -324,6 +324,111 @@ class PageValueFetcher {
     return (price: null, unavailable: unavailable);
   }
 
+  /// TradingView symbol pages embed the live quote as structured JSON
+  /// ("trade":{"price":...} beside a "daily_bar" block whose
+  /// data_update_time tracks the symbol's latest activity) and separately
+  /// carry the previous day's close in renderer fields
+  /// ("daily_bar_close"). Their visible text is percent stats and key-data
+  /// tables, so the generic text reader can return a percentage or a stale
+  /// close as the "price". For tradingview.com hosts we read only the
+  /// embedded trade price for the URL's own symbol, and only when the same
+  /// data block shows a recent update time; stale (market closed or a
+  /// cached snapshot), missing, mismatched-symbol or ambiguous data fails
+  /// honestly instead of guessing from page text. A stale quote must never
+  /// feed a threshold alert, so there is no daily-close fallback: without
+  /// a live trade price the read fails.
+  static ({double? price, String? error, DateTime? updatedAt})
+      tradingViewQuote(
+    String body,
+    String url, {
+    DateTime? now,
+  }) {
+    final uri = Uri.tryParse(url);
+    final host = uri?.host.toLowerCase() ?? '';
+    if (host != 'tradingview.com' && !host.endsWith('.tradingview.com')) {
+      return (price: null, error: null, updatedAt: null);
+    }
+    final clock = now ?? DateTime.now();
+    final seg = uri!.pathSegments;
+    final sIdx = seg.indexOf('symbols');
+    final symbol =
+        (sIdx >= 0 && sIdx + 1 < seg.length ? seg[sIdx + 1] : '')
+            .toUpperCase();
+    final tradeRe = RegExp(
+      r'"trade"\s*:\s*\{\s*"price"\s*:\s*"?([0-9]+(?:\.[0-9]+)?)"?',
+    );
+    final updateRe = RegExp(
+      r'"daily_bar"\s*:\s*\{[^}]*?"data_update_time"\s*:\s*"?([0-9]+(?:\.[0-9]+)?)"?',
+    );
+    final prices = <double>{};
+    DateTime? lastUpdate;
+    var sawTradeBlock = false;
+    var sawWrongSymbol = false;
+    for (final m in tradeRe.allMatches(body)) {
+      sawTradeBlock = true;
+      // The quote and its daily_bar freshness stamp must come from the
+      // same symbol data block, and the block must name the URL's symbol.
+      final lo = m.start - 3000 < 0 ? 0 : m.start - 3000;
+      final hi = m.end + 3000 > body.length ? body.length : m.end + 3000;
+      final region = body.substring(lo, hi);
+      if (symbol.isNotEmpty && !region.contains(symbol)) {
+        sawWrongSymbol = true;
+        continue;
+      }
+      final upd = updateRe.firstMatch(region);
+      if (upd == null) continue;
+      final tsRaw = double.tryParse(upd.group(1)!);
+      if (tsRaw == null) continue;
+      final updateAt =
+          DateTime.fromMillisecondsSinceEpoch((tsRaw * 1000).round());
+      if (lastUpdate == null || updateAt.isAfter(lastUpdate)) {
+        lastUpdate = updateAt;
+      }
+      // A live market updates within minutes; two hours covers the daily
+      // trading break while still rejecting closed-market or cached
+      // snapshot quotes. The read is labelled with this timestamp.
+      final fresh =
+          clock.difference(updateAt) <= const Duration(hours: 2) &&
+          !updateAt.isAfter(clock.add(const Duration(minutes: 30)));
+      if (!fresh) continue;
+      final v = _toNumber(m.group(1)!);
+      if (v != null) prices.add(v);
+    }
+    if (prices.length > 1) {
+      return (
+        price: null,
+        error:
+            'TradingView page from $host shows several different live quotes; no value was picked',
+        updatedAt: null,
+      );
+    }
+    if (prices.length == 1) {
+      return (price: prices.single, error: null, updatedAt: lastUpdate);
+    }
+    if (sawTradeBlock && lastUpdate != null) {
+      return (
+        price: null,
+        error:
+            'TradingView page from $host has no fresh quote (last update ${lastUpdate.toIso8601String()}); the market may be closed - no stale value was used',
+        updatedAt: lastUpdate,
+      );
+    }
+    if (sawTradeBlock && sawWrongSymbol) {
+      return (
+        price: null,
+        error:
+            'TradingView page from $host has no quote block for this symbol; no value was picked',
+        updatedAt: null,
+      );
+    }
+    return (
+      price: null,
+      error:
+          'TradingView page from $host has no readable live quote block; no price was guessed from page text',
+      updatedAt: null,
+    );
+  }
+
   /// Fetches [url] and extracts a value. Never throws: failures come back as
   /// honest FetchOutcome.failed descriptions. Transient network failures
   /// (the phone's radio or DNS still waking up when a background check
@@ -394,6 +499,14 @@ class PageValueFetcher {
         'Amazon page from $host shows no clear buy-box price; it may be a robot-check page or an unfamiliar layout. No price was guessed',
       );
     }
+    final tv = tradingViewQuote(body, url);
+    if (tv.price != null) {
+      return FetchOutcome.found(
+        tv.price!,
+        'TradingView quote ${tv.price} on $host (source last updated ${tv.updatedAt?.toIso8601String() ?? 'unknown'})',
+      );
+    }
+    if (tv.error != null) return FetchOutcome.failed(tv.error!);
     final offer = productOffer(body, url);
     final header = retailerHeader(body, url);
     if (header.unavailable || header.mrpOnly)
