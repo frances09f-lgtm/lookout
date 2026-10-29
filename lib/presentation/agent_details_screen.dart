@@ -627,6 +627,17 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                         ChoiceChip(
                           label: Text(_intervalChipLabel(d)),
                           selected: d == _selectedInterval,
+                          labelStyle: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: d == _selectedInterval
+                                ? Colors.white
+                                : const Color(0xFF201A17),
+                          ),
+                          backgroundColor:
+                              Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.white
+                                  : const Color(0xFFEFE9E1),
+                          selectedColor: const Color(0xFF201A17),
                           onSelected: (_) =>
                               setState(() => _selectedInterval = d),
                         ),
