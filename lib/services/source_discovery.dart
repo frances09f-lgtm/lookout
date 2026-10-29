@@ -417,13 +417,24 @@ class SourceCandidate {
   final DateTime checkedAt;
   final bool marketQuote;
   final bool readableQuote;
+
+  /// The seller domain the offer explicitly named, when it is not this page's
+  /// own site: the reading then comes from a third-party tracker page, not the
+  /// merchant, and is labelled as such instead of looking merchant-current.
+  final String? trackedSellerHost;
+  bool get thirdPartyTracker =>
+      trackedSellerHost != null &&
+      SourceCandidateValidator.registrableDomain(trackedSellerHost!) !=
+          SourceCandidateValidator.registrableDomain(url.host);
   String get readingLabel => currency.isEmpty
       ? (price == 1
             ? 'Exact phrase present on this page'
             : 'Exact phrase not present on this page')
       : readableQuote
           ? '$currency ${price.toStringAsFixed(2)} • quote page without structured data - confirm it shows this price'
-          : '$currency ${price.toStringAsFixed(2)} • $country';
+          : thirdPartyTracker
+              ? '$currency ${price.toStringAsFixed(2)} • $country • tracked from $trackedSellerHost'
+              : '$currency ${price.toStringAsFixed(2)} • $country';
   const SourceCandidate({
     required this.url,
     required this.product,
@@ -433,6 +444,7 @@ class SourceCandidate {
     required this.checkedAt,
     this.marketQuote = false,
     this.readableQuote = false,
+    this.trackedSellerHost,
   });
 }
 
@@ -634,6 +646,29 @@ class SourceCandidateValidator {
         !_onCountryTld(sellerHost, spec.country)) {
       return null;
     }
+    final pageDomain = registrableDomain(page.finalUrl.host);
+    final sellerDomain =
+        sellerHost == null ? null : registrableDomain(sellerHost);
+    if (productUrl != null &&
+        productUrl.hasScheme &&
+        sellerDomain != null &&
+        registrableDomain(productUrl.host) != sellerDomain) {
+      // Self-link and named seller contradict each other about who sells this.
+      return null;
+    }
+    if (sellerDomain != null && sellerDomain != pageDomain) {
+      // A third-party tracker's claim about another seller's price carries no
+      // authority of its own: without a machine-checkable validity date that
+      // is still current, staleness is unverifiable and the page is rejected.
+      final untilRaw = o['priceValidUntil']?.toString();
+      final until = untilRaw == null ? null : DateTime.tryParse(untilRaw);
+      if (until == null) return null;
+      final reference = now ?? DateTime.now();
+      final untilDay = DateTime.utc(until.year, until.month, until.day);
+      final refDay =
+          DateTime.utc(reference.year, reference.month, reference.day);
+      if (untilDay.isBefore(refDay)) return null;
+    }
     return SourceCandidate(
       url: page.finalUrl,
       product: name,
@@ -641,6 +676,7 @@ class SourceCandidateValidator {
       currency: spec.currency,
       country: spec.country,
       checkedAt: now ?? DateTime.now(),
+      trackedSellerHost: sellerHost,
     );
   }
 
@@ -659,6 +695,22 @@ class SourceCandidateValidator {
     final host = Uri.tryParse(raw.contains('://') ? raw : 'https://$raw')?.host;
     if (host == null || !host.contains('.')) return null;
     return host.toLowerCase();
+  }
+
+  /// Registrable domain (last two labels; common second-level prefixes like
+  /// .co.in/.com.au count as one). Used to tell a merchant's own page from a
+  /// third-party tracker quoting that merchant.
+  static String registrableDomain(String host) {
+    final labels = host.toLowerCase().split('.');
+    if (labels.length <= 2) return host.toLowerCase();
+    const secondLevel = {'co', 'com', 'org', 'net', 'ac', 'gov', 'edu'};
+    final tld = labels.last;
+    if (tld.length == 2 &&
+        labels.length >= 3 &&
+        secondLevel.contains(labels[labels.length - 2])) {
+      return labels.sublist(labels.length - 3).join('.');
+    }
+    return labels.sublist(labels.length - 2).join('.');
   }
 
   /// True when the seller host sits on the country's own ccTLD. ISO alpha-2
