@@ -5,6 +5,7 @@ import 'package:lookout/services/background.dart';
 import 'package:lookout/services/checker.dart';
 import 'package:lookout/services/notifications.dart';
 import 'package:lookout/services/page_fetch.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 Agent reminder({required DateTime due, int? id}) => Agent(
       id: id,
@@ -66,7 +67,33 @@ void main() {
       lessThan(repo.kvOrder.indexOf('lastBackgroundRunAt')),
     );
     expect(await repo.getKv('lastBackgroundRunChecked'), '1');
-    expect(await repo.getKv('lastBackgroundError'), isNull);
+    expect(await repo.getKv('lastBackgroundError') ?? '', isEmpty);
+  });
+
+  test('a later success clears an earlier worker error from both mirrors',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    final failing = FailingRepo();
+    final failChecker =
+        AgentChecker(repo: failing, notifier: RecordingNotifier());
+    expect(await runBackgroundCycle(repo: failing, checker: failChecker),
+        isFalse);
+    expect(await failing.getKv('lastBackgroundError'),
+        contains('store exploded'));
+
+    final repo = InMemoryAgentRepository();
+    final now = DateTime(2026, 1, 2, 12);
+    await repo.insertAgent(reminder(due: now.subtract(const Duration(hours: 1))));
+    // Simulate the stale error the failing run left behind, in both stores.
+    await repo.putKv('lastBackgroundError', '2026-10-25 old crash');
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(prefLastError, '2026-10-25 old crash');
+
+    final checker =
+        AgentChecker(repo: repo, notifier: RecordingNotifier(), clock: () => now);
+    expect(await runBackgroundCycle(repo: repo, checker: checker), isTrue);
+    expect(await repo.getKv('lastBackgroundError') ?? '', isEmpty);
+    expect(prefs.getString(prefLastError) ?? '', isEmpty);
   });
 
   test('a failing sweep records an error and returns false', () async {
