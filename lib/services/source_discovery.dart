@@ -289,6 +289,42 @@ class DiscoveryTaskParser {
 
   static String _normal(String value) =>
       value.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+  /// Identity for a freshly fetched merchant page read as visible text.
+  /// Real retailer titles always carry descriptors ("Wireless
+  /// Noise-Canceling Headphones (Black) | Vijay Sales"), so the exact
+  /// equality the structured ld+json path keeps can never match a real
+  /// page. Here the full model phrase must appear contiguously and no
+  /// accessory/variant/used marker may be present; the page still has to
+  /// prove stock, country and a single dominant current price afterwards.
+  static bool visibleIdentityMatches(String name, DiscoverySpec spec) {
+    if (identityMatches(name, spec)) return true;
+    if (spec.storageGb > 0) return false; // the pinned path already said no
+    String canonical(String v) =>
+        _normal(v).replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
+    final cName = canonical(name);
+    final cModel = canonical(spec.model);
+    if (!' $cName '.contains(' $cModel ')) return false;
+    final modelTokens = cModel.split(' ').where((t) => t.isNotEmpty).toSet();
+    final nameTokens = cName.split(' ').where((t) => t.isNotEmpty).toSet();
+    const markers = [
+      'ultra', 'plus', 'pro', 'max', 'fe', 'edge', 'mini',
+      'case', 'cover', 'charger', 'cable', 'protector',
+      'refurbished', 'renewed', 'used', 'vs', 'replacement', 'spare',
+      'earpads', 'sleeve', 'pouch', 'strap', 'adapter', 'skin', 'decal',
+      'wrap', 'holder', 'mount', 'tempered',
+    ];
+    for (final m in markers) {
+      if (!modelTokens.contains(m) && nameTokens.contains(m)) return false;
+    }
+    if (nameTokens.contains('ear') && nameTokens.contains('pads')) {
+      return false;
+    }
+    if (nameTokens.contains('screen') && nameTokens.contains('guard')) {
+      return false;
+    }
+    return true;
+  }
+
   static bool identityMatches(String name, DiscoverySpec spec) {
     if (RegExp(r'\biphone\b', caseSensitive: false).hasMatch(spec.model) &&
         RegExp(
@@ -691,7 +727,7 @@ class SourceCandidateValidator {
   /// tracker pages never feed this path. Every leg must be proven from the
   /// page itself: product identity (including pinned variant/storage) from
   /// the title or main heading BEFORE any price is read, region from the
-  /// merchant's own ccTLD, stock from explicit in-stock text, and exactly one
+  /// merchant's own ccTLD, stock from explicit in-stock text or a purchase call-to-action, and exactly one
   /// dominant current price among price-marked elements after MRP/EMI/
   /// savings/accessory contexts are excluded. Any ambiguity rejects.
   static SourceCandidate? validateVisibleOffer(
@@ -700,20 +736,88 @@ class SourceCandidateValidator {
     DateTime? now,
   }) {
     if (spec.kind != 'productPrice') return null;
-    // Region: the merchant's own domain must sit on the requested country's
-    // ccTLD. A .com page in an INR task proves nothing about the country.
-    if (!_onCountryTld(page.finalUrl.host, spec.country)) return null;
     final doc = html.parse(page.body);
     doc
         .querySelectorAll(
           'script, style, noscript, template, [hidden], [aria-hidden="true"]',
         )
         .forEach((e) => e.remove());
+    final visible = doc.body?.text ?? '';
+    final low = visible.toLowerCase();
+    // A purchase call to action counts only as a real, usable one: an
+    // ENABLED button/link whose target stays on the merchant's own site.
+    // A disabled or hidden control, or a "Buy" link that leads to another
+    // domain, proves nothing - outbound buy links are what trackers show.
+    final ctaText = RegExp(
+      r'^(add to (cart|bag|basket)|buy now)\b',
+      caseSensitive: false,
+    );
+    bool hasOwnCheckout = false;
+    for (final el in doc.querySelectorAll('button, a')) {
+      final t = el.text.replaceAll(RegExp(r'\s+'), ' ').trim();
+      if (!ctaText.hasMatch(t)) continue;
+      final attrs = el.attributes;
+      if (attrs.containsKey('disabled') ||
+          attrs['aria-disabled'] == 'true' ||
+          RegExp(r'\b(d-none|disabled|hidden)\b').hasMatch(
+            attrs['class'] ?? '',
+          )) {
+        continue;
+      }
+      final href = attrs['href'];
+      if (href != null && href.isNotEmpty) {
+        final target = Uri.tryParse(href);
+        if (target != null &&
+            target.hasAuthority &&
+            registrableDomain(target.host) !=
+                registrableDomain(page.finalUrl.host)) {
+          continue;
+        }
+      }
+      hasOwnCheckout = true;
+      break;
+    }
+    // Region: the merchant's own domain on the requested country's ccTLD is
+    // direct evidence. A domestic merchant on a plain .com (vijaysales.com,
+    // croma.com, tatacliq.com) has no ccTLD, so there the page must prove
+    // the country itself: its own checkout (above) AND an explicit
+    // on-page signal for that country (a PIN-code delivery check or
+    // shipping/delivery wording naming it). Currency is NOT evidence -
+    // foreign shops can display any currency.
+    // Only wording that ties the MERCHANT's own selling or delivery to the
+    // country counts: storefront/shipping/delivery context naming it, or a
+    // country-specific delivery mechanism (India's PIN-code check) with the
+    // country named on the page. A manufacturer's or importer's local
+    // address proves nothing about where this shop sells - any foreign
+    // storefront can list one - so company names alone never qualify.
+    final countryName = _countryNames[spec.country]?.toLowerCase();
+    final namedOnPage =
+        countryName != null &&
+        RegExp(
+          '\\b${RegExp.escape(countryName)}\\b',
+          caseSensitive: false,
+        ).hasMatch(low);
+    final deliveryPin = RegExp(
+      '(deliver|shipping|dispatch|estimat)[^\\.]{0,45}pin ?code|pin ?code[^\\.]{0,45}(deliver|shipping|dispatch)',
+      caseSensitive: false,
+    ).hasMatch(low);
+    final countrySignalled =
+        countryName != null &&
+        (RegExp(
+              '(ship|deliver|store|storefront|sold|serv)[^\\.]{0,45}\\b${RegExp.escape(countryName)}\\b',
+              caseSensitive: false,
+            ).hasMatch(low) ||
+            (namedOnPage && deliveryPin));
+    final regionOk = _onCountryTld(page.finalUrl.host, spec.country) ||
+        (_countryExclusiveCurrencies[spec.currency] == spec.country &&
+            hasOwnCheckout &&
+            countrySignalled);
+    if (!regionOk) return null;
     // Identity first: the page must be ABOUT the requested product+variant.
     final title = doc.querySelector('title')?.text.trim() ?? '';
     final h1 = doc.querySelector('h1')?.text.trim() ?? '';
-    if (!DiscoveryTaskParser.identityMatches(title, spec) &&
-        (h1.isEmpty || !DiscoveryTaskParser.identityMatches(h1, spec))) {
+    if (!DiscoveryTaskParser.visibleIdentityMatches(title, spec) &&
+        (h1.isEmpty || !DiscoveryTaskParser.visibleIdentityMatches(h1, spec))) {
       return null;
     }
     if (spec.colour != null &&
@@ -723,15 +827,46 @@ class SourceCandidateValidator {
         ).hasMatch(title)) {
       return null;
     }
-    final visible = doc.body?.text ?? '';
     // Stock must be explicit, never assumed.
-    final low = visible.toLowerCase();
     if (low.contains('out of stock') ||
         low.contains('currently unavailable') ||
-        low.contains('sold out')) {
+        low.contains('sold out') ||
+        low.contains('notify me') ||
+        low.contains('preorder') ||
+        low.contains('pre-order') ||
+        low.contains('backorder') ||
+        low.contains('back order')) {
       return null;
     }
-    if (!low.contains('in stock')) return null;
+    // Availability is explicit, never assumed: direct in-stock text, or a
+    // real usable checkout action on this page.
+    final inStockText = low.contains('in stock');
+    if (!inStockText && !hasOwnCheckout) return null;
+    // On a page with a variant picker, availability must be associated
+    // with the SELECTED variant the title pins: a generic checkout button
+    // never proves it, and a bare "in stock" string somewhere in the page
+    // only co-occurs with the selection. The text must sit inside an
+    // availability/buy-box-marked container, which the merchant renders
+    // for the current selection.
+    final picker = RegExp(
+      '(id|class)="[^"]*(twister|swatch|variant[-_ ]?selector|size[-_ ]?selector|colou?r[-_ ]?selector)',
+      caseSensitive: false,
+    ).hasMatch(page.body);
+    if (picker) {
+      final associatedStock = doc
+          .querySelectorAll('[id], [class]')
+          .where((e) {
+            final marker =
+                '${e.attributes['id'] ?? ''} ${e.attributes['class'] ?? ''}'
+                    .toLowerCase();
+            return marker.contains('availability') ||
+                marker.contains('buybox') ||
+                marker.contains('buy-box') ||
+                marker.contains('stock');
+          })
+          .any((e) => e.text.toLowerCase().contains('in stock'));
+      if (!associatedStock) return null;
+    }
     // Currency tokens matching the task's currency only.
     final symbols = _currencySymbols[spec.currency];
     if (symbols == null) return null;
@@ -791,6 +926,13 @@ class SourceCandidateValidator {
       visibleOffer: true,
     );
   }
+
+  /// Currencies issued by exactly one country, usable as country evidence
+  /// for a merchant's own checkout page. Extend only with grounded
+  /// one-country currencies - never USD/EUR/GBP and the like.
+  static const _countryExclusiveCurrencies = {'INR': 'IN'};
+
+  static const _countryNames = {'IN': 'India'};
 
   static const _currencySymbols = {
     'INR': ['₹', 'Rs.', 'Rs', 'INR'],
