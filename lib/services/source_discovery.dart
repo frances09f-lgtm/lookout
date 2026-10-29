@@ -187,7 +187,7 @@ class DiscoveryTaskParser {
       subject = subject
           .replaceAll(
             RegExp(
-              r'\b(?:price|becomes?|go(?:es)?|is|to|drop|falls?)\b',
+              r'\b(?:price|becomes?|go(?:es)?|is|to|drops?|falls?|rises?)\b',
               caseSensitive: false,
             ),
             ' ',
@@ -694,9 +694,13 @@ class SourceCandidateValidator {
   static bool _subjectNamesPage(String heading, DiscoverySpec spec) {
     String canonical(String v) =>
         v.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
+    const arena = {
+      'forex', 'spot', 'market', 'markets', 'live', 'today', 'trading',
+      'rise', 'rises', 'fall', 'falls',
+    };
     final tokens = canonical(
       spec.model,
-    ).split(' ').where((t) => t.length >= 3).toSet();
+    ).split(' ').where((t) => t.length >= 3 && !arena.contains(t)).toSet();
     if (tokens.isEmpty) return false;
     final page = canonical(heading).split(' ').toSet();
     return tokens.every(page.contains);
@@ -1242,6 +1246,8 @@ class SourceDiscoveryService {
         hits.isEmpty && review.isEmpty
             ? (spec.isText
                   ? 'No readable public page matching this subject was verified. No watch was started.'
+                  : spec.storageGb == 0
+                  ? 'No page with a provable current price for this exact subject and currency was verified. Try again later or use an optional manual URL. No watch was started.'
                   : 'No exact, in-stock product page with a readable current price was verified. Try again later or use an optional manual URL. No watch was started.')
             : null,
         List.unmodifiable(review),
