@@ -584,18 +584,23 @@ class SourceCandidateValidator {
             spec.reviewedProduct!.toLowerCase().trim()) {
       return null;
     }
-    final rawProductUrl = p['url']?.toString() ?? '';
-    final productUrl = Uri.tryParse(rawProductUrl);
-    if (productUrl == null ||
-        !productUrl.hasScheme ||
-        productUrl.host != page.finalUrl.host ||
-        productUrl.path != page.finalUrl.path) {
-      return null;
-    }
     final offers = p['offers'] is List ? p['offers'] as List : [p['offers']];
     // Seller/variant offer ranges and aggregate prices require a separate adapter.
     if (offers.length != 1 || offers.single is! Map) return null;
     final o = offers.single as Map;
+    final rawProductUrl = p['url']?.toString() ?? '';
+    final productUrl = Uri.tryParse(rawProductUrl);
+    if (productUrl != null && productUrl.hasScheme) {
+      // A self-link must point at this exact page.
+      if (productUrl.host != page.finalUrl.host ||
+          productUrl.path != page.finalUrl.path) {
+        return null;
+      }
+    } else if (_sellerDomain(o) == null) {
+      // Without a self-link, the single embedded product only counts as this
+      // page's own offer when the offer explicitly names a seller domain.
+      return null;
+    }
     if (o['@type'] != 'Offer' || o['priceCurrency'] != spec.currency) {
       return null;
     }
@@ -615,13 +620,20 @@ class SourceCandidateValidator {
     }
     final price = double.tryParse(o['price']?.toString() ?? '');
     if (price == null || !price.isFinite || price <= 0) return null;
-    // A region cannot be established by currency alone. The seller's offer
-    // must explicitly name the requested country (ISO code supplied by UI).
+    // A region cannot be established by currency alone. The offer must
+    // explicitly anchor the requested country (ISO code supplied by UI):
+    // either eligibleRegion names it, or the named seller operates on that
+    // country's own ccTLD storefront (amazon.in is an India offer; amazon.com
+    // in INR would prove nothing).
     final region = o['eligibleRegion'];
     final regionCode = region is Map
         ? region['name']?.toString()
         : region?.toString();
-    if (regionCode?.toUpperCase() != spec.country.toUpperCase()) return null;
+    final sellerHost = _sellerDomain(o);
+    if (regionCode?.toUpperCase() != spec.country.toUpperCase() &&
+        !_onCountryTld(sellerHost, spec.country)) {
+      return null;
+    }
     return SourceCandidate(
       url: page.finalUrl,
       product: name,
@@ -630,6 +642,33 @@ class SourceCandidateValidator {
       country: spec.country,
       checkedAt: now ?? DateTime.now(),
     );
+  }
+
+  /// The seller's domain from an offer's offeredBy/url field, when it is
+  /// explicitly a domain (amazon.in), else null. A bare name like "Amazon"
+  /// is not seller evidence.
+  static String? _sellerDomain(Map offer) {
+    final by = offer['offeredBy'];
+    String? raw;
+    if (by is Map) {
+      raw = by['url']?.toString() ?? by['name']?.toString();
+    } else {
+      raw = by?.toString() ?? offer['url']?.toString();
+    }
+    if (raw == null) return null;
+    final host = Uri.tryParse(raw.contains('://') ? raw : 'https://$raw')?.host;
+    if (host == null || !host.contains('.')) return null;
+    return host.toLowerCase();
+  }
+
+  /// True when the seller host sits on the country's own ccTLD. ISO alpha-2
+  /// matches the ccTLD for almost every country; GB uses .uk.
+  static bool _onCountryTld(String? host, String country) {
+    if (host == null) return false;
+    var tld = country.toLowerCase();
+    if (tld == 'gb') tld = 'uk';
+    if (tld.length != 2) return false;
+    return host == tld || host.endsWith('.$tld');
   }
 
   /// Region-free live market quotes (crypto/FX/instrument pages). Used only
