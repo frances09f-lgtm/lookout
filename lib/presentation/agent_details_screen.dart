@@ -638,6 +638,11 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                                   ? Colors.white
                                   : const Color(0xFFEFE9E1),
                           selectedColor: const Color(0xFF201A17),
+                          side: BorderSide(
+                            color: d == _selectedInterval
+                                ? const Color(0xFF6E675F)
+                                : const Color(0xFF8A8178),
+                          ),
                           onSelected: (_) =>
                               setState(() => _selectedInterval = d),
                         ),
@@ -645,8 +650,10 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '5 and 10 minutes only while the app is open. Closed-app '
-                    'background checks need at least 15 minutes on Android. '
+                    '5 and 10-minute checks are attempted while the app is '
+                    'open. Exact-alarm permission enables closed-app '
+                    'attempts; Android may delay them. Without it, '
+                    'background checks use a minimum 15-minute interval. '
                     'Changes apply to future checks.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
