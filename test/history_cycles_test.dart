@@ -7,6 +7,18 @@ ActivityEntry mk(String message, DateTime at) =>
     ActivityEntry(agentId: 1, message: message, timestamp: at);
 
 void main() {
+  group('creation entry', () {
+    test('a lone Task created entry renders as creation, not an edit', () {
+      final at = DateTime.now().subtract(const Duration(minutes: 3));
+      final cycles = groupHistoryCycles([mk('Task created', at)]);
+      expect(cycles, hasLength(1));
+      expect(cycles.single.title, 'Task created');
+      expect(cycles.single.badge, 'Created');
+      expect(cycles.single.steps, isEmpty);
+      expect(cycles.single.looksInterrupted, isFalse);
+    });
+  });
+
   group('edit/save groups', () {
     final at = DateTime.now().subtract(const Duration(hours: 9));
 
