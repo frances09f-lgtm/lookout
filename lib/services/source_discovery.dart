@@ -208,10 +208,32 @@ class DiscoveryTaskParser {
         q.add('Which currency?');
       }
       if (q.isNotEmpty) return TaskClarification(null, q);
+      final storages = _storage
+          .allMatches(subject)
+          .map(
+            (m) =>
+                int.parse(m.group(1)!) *
+                (m.group(2)!.toLowerCase() == 'tb' ? 1024 : 1),
+          )
+          .toSet();
+      if (storages.length > 1) {
+        return const TaskClarification(null, [
+          'Which storage size (for example 256 GB)?',
+        ]);
+      }
+      var model = subject;
+      var storageGb = 0;
+      if (storages.length == 1) {
+        storageGb = storages.single;
+        model = subject
+            .replaceAll(_storage, ' ')
+            .replaceAll(RegExp(r'\s+'), ' ')
+            .trim();
+      }
       return TaskClarification(
         DiscoverySpec(
-          model: subject,
-          storageGb: 0,
+          model: model,
+          storageGb: storageGb,
           target: goal.target!,
           condition: goal.condition!,
           country: country!,
@@ -278,8 +300,58 @@ class DiscoveryTaskParser {
     if (!RegExp(r'\biphone\b', caseSensitive: false).hasMatch(spec.model)) {
       String canonical(String v) =>
           _normal(v).replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
-      // Exact reviewed item name. Subsets are unsafe (S25 vs S25 Ultra).
-      return canonical(name) == canonical(spec.model);
+      // Without a pinned storage size, keep the exact-equality rule: extra
+      // words in a descriptive retailer title leave the exact product
+      // unverified, so it goes to review instead of counting as a source.
+      if (spec.storageGb <= 0) {
+        return canonical(name) == canonical(spec.model);
+      }
+      // With storage pinned by the task, every model token must appear (pages
+      // add "Galaxy", "5G", RAM, colour) and the name must show that exact
+      // size, but a page naming a different variant
+      // (Ultra/FE/Plus/Edge/Pro/Max/Mini) or an accessory/used listing the
+      // task did not ask for is a different product. Bare subset matching
+      // without these guards is unsafe (S25 vs S25 Ultra).
+      final modelTokens = canonical(
+        spec.model,
+      ).split(' ').where((t) => t.isNotEmpty).toSet();
+      final nameTokens = canonical(
+        name,
+      ).split(' ').where((t) => t.isNotEmpty).toSet();
+      if (!nameTokens.containsAll(modelTokens)) return false;
+      const markers = [
+        'ultra', 'plus', 'pro', 'max', 'fe', 'edge', 'mini',
+        'case', 'cover', 'charger', 'cable', 'protector',
+        'refurbished', 'renewed', 'used',
+      ];
+      for (final m in markers) {
+        if (!modelTokens.contains(m) && nameTokens.contains(m)) return false;
+      }
+      // "S25+" style plus-suffix vanishes in canonicalisation; check raw text.
+      final family = modelTokens.firstWhere(
+        (t) => t.contains(RegExp(r'\d')),
+        orElse: () => '',
+      );
+      if (family.isNotEmpty &&
+          !spec.model.contains('+') &&
+          RegExp('\\b${RegExp.escape(family)}\\+', caseSensitive: false)
+              .hasMatch(name)) {
+        return false;
+      }
+      // The pinned storage size must be shown by the page name itself; a
+      // page silent on size cannot prove the variant.
+      {
+        final sizes = _storage
+            .allMatches(name)
+            .map(
+              (m) =>
+                  int.parse(m.group(1)!) *
+                  (m.group(2)!.toLowerCase() == 'tb' ? 1024 : 1),
+            )
+            .toSet();
+        if (!sizes.contains(spec.storageGb)) return false;
+      }
+      return true;
     }
     final models = _model
         .allMatches(name)
@@ -1525,6 +1597,21 @@ class HttpDiscoveryPageReader implements DiscoveryPageReader {
 
   @override
   Future<ProductPage> read(Uri url) async {
+    var current = url;
+    // Follow redirects hop by hop, re-validating each address; silent drops
+    // of 3xx pages made reachable sources look unreadable.
+    for (var hop = 0; hop < 6; hop++) {
+      final page = await _readOnce(current);
+      if (page.status >= 300 && page.status < 400 && page.location != null) {
+        current = current.resolveUri(Uri.parse(page.location!));
+        continue;
+      }
+      return ProductPage(current, page.status, page.body);
+    }
+    return ProductPage(current, 0, '');
+  }
+
+  Future<_RawPage> _readOnce(Uri url) async {
     if (!SourceCandidateValidator.publicHttps(url)) {
       throw const DiscoveryUnavailable('Unsupported source address.');
     }
@@ -1559,8 +1646,9 @@ class HttpDiscoveryPageReader implements DiscoveryPageReader {
       );
       final response = await request.close();
       final type = response.headers.contentType?.mimeType;
+      final location = response.headers.value(HttpHeaders.locationHeader);
       if (response.statusCode != 200 || type != 'text/html') {
-        return ProductPage(url, response.statusCode, '');
+        return _RawPage(response.statusCode, '', location);
       }
       final bytes = <int>[];
       await for (final chunk in response) {
@@ -1569,15 +1657,22 @@ class HttpDiscoveryPageReader implements DiscoveryPageReader {
           throw const DiscoveryUnavailable('Source page is too large.');
         }
       }
-      return ProductPage(
-        url,
+      return _RawPage(
         response.statusCode,
         utf8.decode(bytes, allowMalformed: true),
+        location,
       );
     } finally {
       client.close(force: true);
     }
   }
+}
+
+class _RawPage {
+  final int status;
+  final String body;
+  final String? location;
+  const _RawPage(this.status, this.body, this.location);
 }
 
 SourceDiscoveryService defaultSourceDiscovery() => const SourceDiscoveryService(
