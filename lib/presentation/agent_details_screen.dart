@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../data/agent_repository.dart';
 import '../domain/activity.dart';
+import '../domain/time_format.dart';
 import '../domain/agent.dart';
 import '../domain/parser.dart';
 import '../services/checker.dart';
@@ -856,6 +857,5 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
     );
   }
 
-  static String _fmtTime(DateTime t) =>
-      '${t.day}/${t.month} ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+  static String _fmtTime(DateTime t) => fmtAppTime(t);
 }
