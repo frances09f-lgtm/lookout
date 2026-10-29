@@ -667,13 +667,22 @@ class SourceCandidateValidator {
     final title = doc.querySelector('title')?.text.trim() ?? '';
     final h1 = doc.querySelector('h1')?.text.trim() ?? '';
     if (!_subjectNamesPage('$title $h1', spec)) return null;
+    // The page's headline unit must agree with the unit the URL promises:
+    // an /ounce URL whose headline reads "per Gram" is not the page it
+    // claims to be, and a gram quote must never stand in for an ounce one.
+    if (!_headlineUnitAgrees(page.finalUrl, h1, spec.model)) return null;
     final text = PageValueFetcher.htmlToText(page.body);
     // One extraction the offer, the activation re-read and every later check
     // agree on: an FX equation row for pair subjects, or the single
     // currency-adjacent, currently-dated amount otherwise. Signed changes,
     // percentages, fee-labelled numbers, date/time fragments, and ambiguous
     // or stale values reject instead of guessing.
-    final guided = _guidedQuoteValue(text, spec, now ?? DateTime.now());
+    final guided = _guidedQuoteValue(
+      text,
+      spec,
+      now ?? DateTime.now(),
+      headline: h1.isNotEmpty ? h1 : title,
+    );
     if (guided == null) return null;
     final value = guided.value;
     return SourceCandidate(
@@ -706,6 +715,40 @@ class SourceCandidateValidator {
     return tokens.every(page.contains);
   }
 
+  static String? _unitOf(String v) {
+    const units = [
+      'ounce', 'gram', 'kilogram', 'kilo', 'tola',
+      'baht', 'tael', 'carat', 'grain', 'ratti', 'masha',
+    ];
+    final c = v.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ');
+    for (final u in units) {
+      if (RegExp('\\b' + u + '\\b').hasMatch(c)) return u;
+    }
+    return null;
+  }
+
+  static bool _headlineUnitAgrees(Uri url, String h1, String model) {
+    final urlUnit = _unitOf(url.path);
+    final headUnit = _unitOf(h1);
+    final modelUnit = _unitOf(model);
+    // A task that names its unit fixes it; the page and its headline must
+    // agree with the task, not merely with each other.
+    if (modelUnit != null) {
+      if (urlUnit != null && urlUnit != modelUnit) return false;
+      if (headUnit != null && headUnit != modelUnit) return false;
+      return true;
+    }
+    // A metal quote without an explicit unit intends the standard ounce
+    // price: a gram/tola page or headline never substitutes for it.
+    if (RegExp(r'\b(gold|silver)\b', caseSensitive: false).hasMatch(model)) {
+      if (urlUnit != null && urlUnit != 'ounce') return false;
+      if (headUnit != null && headUnit != 'ounce') return false;
+      return true;
+    }
+    if (urlUnit == null || headUnit == null) return true;
+    return urlUnit == headUnit;
+  }
+
   /// Every position where the number the checker will read sits next to the
   /// watched currency, so the reading is provably that price.
   /// Every position where the number the checker will read sits next to the
@@ -716,8 +759,9 @@ class SourceCandidateValidator {
   static ({double value, int at})? _guidedQuoteValue(
     String text,
     DiscoverySpec spec,
-    DateTime now,
-  ) {
+    DateTime now, {
+    String headline = '',
+  }) {
     final pair = _fxPair(spec);
     if (pair != null) {
       // FX: the watched unit is the quote side; an inverted page/task pair
@@ -725,7 +769,7 @@ class SourceCandidateValidator {
       if (spec.currency.toUpperCase() != pair.$2) return null;
       return _fxGuidedValue(text, pair.$1, pair.$2, now);
     }
-    return _currencyGuidedValue(text, spec.currency, now);
+    return _currencyGuidedValue(text, spec, now, headline: headline);
   }
 
   /// Two currency codes in the subject name an FX pair, base first:
@@ -773,10 +817,11 @@ class SourceCandidateValidator {
   /// date near it, otherwise the page is ambiguous and rejects.
   static ({double value, int at})? _currencyGuidedValue(
     String text,
-    String currency,
-    DateTime now,
-  ) {
-    final code = currency.toUpperCase();
+    DiscoverySpec spec,
+    DateTime now, {
+    String headline = '',
+  }) {
+    final code = spec.currency.toUpperCase();
     final codeRx = RegExp('\\b$code\\b');
     final numRx = RegExp(r'[0-9][0-9,]*(?:\.[0-9]+)?');
     final candidates = <double, int>{};
@@ -806,12 +851,44 @@ class SourceCandidateValidator {
       }
     }
     if (candidates.isEmpty) return null;
-    final fresh = candidates.entries
-        .where((e) => _showsCurrentDate(text, now, near: e.value))
-        .toList();
-    final freshValues = fresh.map((e) => e.key).toSet();
-    if (freshValues.length == 1) {
-      return (value: freshValues.single, at: fresh.first.value);
+    // The quote is the value the page's own headline presents: the amount
+    // inside or right after the heading that names the instrument, unit
+    // and currency ("Gold Price per Ounce in US Dollar = $4,025.66 USD").
+    // Every occurrence of the headline: the title often repeats the
+    // heading, so the quote-linked occurrence is the one the value
+    // actually follows.
+    final hStarts = <int>[];
+    if (headline.isNotEmpty) {
+      var i = text.indexOf(headline);
+      while (i >= 0) {
+        hStarts.add(i);
+        i = text.indexOf(headline, i + 1);
+      }
+    }
+    bool headlineLinked(int pos) => hStarts.any(
+          (h) => pos >= h && pos <= h + headline.length + 160,
+        );
+    final fresh = <double, int>{};
+    for (final e in candidates.entries) {
+      final pos = e.value;
+      // Explicit stale evidence next to the value always rejects.
+      if (_hasStaleDate(text, now, near: pos)) continue;
+      if (_showsCurrentDate(text, now, near: pos)) {
+        fresh[e.key] ??= pos;
+        continue;
+      }
+      // The headline quote's freshness comes from a stamp the page ties
+      // to this instrument or to the quote by label ("Gold/Ounce
+      // 29-OCT-2026", "Gold update time ...", "Updated: ..."). A bare
+      // nearby date proves nothing: goldpricez's stats block ends in a
+      // stamp that belongs to the Performance section, not the quote.
+      if (headlineLinked(pos) &&
+          _hasLabeledCurrentStamp(text, spec, now)) {
+        fresh[e.key] ??= pos;
+      }
+    }
+    if (fresh.length == 1) {
+      return (value: fresh.keys.single, at: fresh.values.single);
     }
     return null;
   }
@@ -832,6 +909,16 @@ class SourceCandidateValidator {
     if (RegExp(
       r'(increase|decrease|change|gain|loss|rise|rose|fall|fell|drop|grew)'
       r'[a-z]*\b[^0-9]{0,16}$',
+      caseSensitive: false,
+    ).hasMatch(before)) {
+      return true;
+    }
+    // Derived market stats are not the quote: day open/high/low/close,
+    // the high-low range difference, averages and "days ago" narrative
+    // figures all sit next to the currency with decimals on quote pages.
+    if (RegExp(
+      r'(open|high|low|close|difference|range|average|avg|bid|ask|spread|ago)'
+      r'[a-z]*\b[^0-9]{0,24}$',
       caseSensitive: false,
     ).hasMatch(before)) {
       return true;
@@ -873,12 +960,17 @@ class SourceCandidateValidator {
 
   /// A live quote page shows when its quote is from. Accept a visible date
   /// of today or yesterday (page timezone may sit behind the device's).
-  static bool _showsCurrentDate(String text, DateTime now, {int? near}) {
+  static bool _showsCurrentDate(
+    String text,
+    DateTime now, {
+    int? near,
+    int radius = 200,
+  }) {
     final scoped = near == null
         ? text
         : text.substring(
-            near - 200 < 0 ? 0 : near - 200,
-            near + 200 > text.length ? text.length : near + 200,
+            near - radius < 0 ? 0 : near - radius,
+            near + radius > text.length ? text.length : near + radius,
           );
     const months = [
       'jan', 'feb', 'mar', 'apr', 'may', 'jun',
@@ -894,6 +986,90 @@ class SourceCandidateValidator {
         RegExp('\\b$y-0?${day.month}-0?$d\\b'),
       ];
       if (patterns.any((rx) => rx.hasMatch(scoped))) return true;
+    }
+    return false;
+  }
+
+  /// A date sits near the value but none of it is current: explicit
+  /// evidence the quote is stale. Stronger than any wider current date -
+  /// a stale stamp next to the value rejects even when a fresher stat or
+  /// timestamp appears elsewhere in the block.
+  static bool _hasStaleDate(String text, DateTime now, {required int near}) {
+    final scoped = text.substring(
+      near - 200 < 0 ? 0 : near - 200,
+      near + 200 > text.length ? text.length : near + 200,
+    );
+    const anyDate = [
+      r'\b[0-9]{1,2}[ -](jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[ -][0-9]{4}\b',
+      r'\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[ ]+[0-9]{1,2},?[ ]+[0-9]{4}\b',
+      r'\b[0-9]{4}-[0-9]{2}-[0-9]{2}\b',
+    ];
+    final hasAny = anyDate.any(
+      (p) => RegExp(p, caseSensitive: false).hasMatch(scoped),
+    );
+    if (!hasAny) return false;
+    return !_showsCurrentDate(text, now, near: near);
+  }
+
+  /// A current stamp the page ties to this quote by label: an update label
+  /// ("Updated:", "Last updated", "update time", "as of") or the subject
+  /// itself naming its unit/update ("Gold/Ounce 29-OCT-2026", "Gold update
+  /// time ...") within the 60 chars before the stamp. A bare date near the
+  /// value is NOT evidence: it can belong to a neighbouring stats or
+  /// performance section.
+  static bool _hasLabeledCurrentStamp(
+    String text,
+    DiscoverySpec spec,
+    DateTime now,
+  ) {
+    const arena = {
+      'forex', 'spot', 'market', 'markets', 'live', 'today', 'trading',
+      'rise', 'rises', 'fall', 'falls',
+    };
+    final tokens = spec.model
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+        .trim()
+        .split(' ')
+        .where((t) => t.length >= 3 && !arena.contains(t))
+        .toList();
+    final generic = RegExp(
+      r'(last\s+)?updat(ed|e)(\s+time)?|as of',
+      caseSensitive: false,
+    );
+    // "<subject> update time" names the quote's own refresh; a bare
+    // "<subject>/<unit>" mention can be a section title (goldpricez's
+    // stats stamp sits under "Performance (Gold/Ounce)"), so it is not
+    // enough on its own.
+    final subjectLabels = <RegExp>[
+      for (final t in tokens)
+        RegExp('\\b' + t + '\\s+updat', caseSensitive: false),
+    ];
+    bool labeledBefore(int start) {
+      final a = start - 60 < 0 ? 0 : start - 60;
+      final before = text.substring(a, start);
+      return generic.hasMatch(before) ||
+          subjectLabels.any((rx) => rx.hasMatch(before));
+    }
+
+    const months = [
+      'jan', 'feb', 'mar', 'apr', 'may', 'jun',
+      'jul', 'aug', 'sep', 'oct', 'nov', 'dec',
+    ];
+    for (final day in [now, now.subtract(const Duration(days: 1))]) {
+      final d = day.day;
+      final m = months[day.month - 1];
+      final y = day.year;
+      final patterns = <RegExp>[
+        RegExp('\\b0?' + '$d' + '[ -]' + m + '[a-z]*[ -]' + '$y' + '\\b', caseSensitive: false),
+        RegExp('\\b' + m + '[a-z]*\\s+0?' + '$d' + ',?\\s+' + '$y' + '\\b', caseSensitive: false),
+        RegExp('\\b' + '$y' + '-0?' + '${day.month}' + '-0?' + '$d' + '\\b'),
+      ];
+      for (final rx in patterns) {
+        for (final match in rx.allMatches(text)) {
+          if (labeledBefore(match.start)) return true;
+        }
+      }
     }
     return false;
   }
