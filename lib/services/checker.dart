@@ -10,6 +10,7 @@ library;
 
 import '../data/agent_repository.dart';
 import '../domain/agent.dart';
+import '../domain/time_format.dart';
 import '../domain/ticket_task.dart';
 import 'notifications.dart';
 import 'page_fetch.dart';
@@ -318,6 +319,5 @@ class AgentChecker {
   static String _fmt(double v) =>
       v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
 
-  static String _fmtTime(DateTime t) =>
-      '${t.day}/${t.month} ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+  static String _fmtTime(DateTime t) => fmtAppTime(t);
 }
