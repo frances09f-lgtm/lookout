@@ -80,10 +80,12 @@ class _ActivityScreenState extends State<ActivityScreen> {
     } catch (_) {
       // No mirror either; whatever the store gave is all there is.
     }
+    final completed =
+        completedRaw == null ? null : DateTime.tryParse(completedRaw);
     return _BackgroundStatus(
       started: startedRaw == null ? null : DateTime.tryParse(startedRaw),
-      completed: completedRaw == null ? null : DateTime.tryParse(completedRaw),
-      error: (error == null || error.isEmpty) ? null : error,
+      completed: completed,
+      error: currentWorkerError(error, completed),
       note: (note == null || note.isEmpty) ? null : note,
       readError: readError,
     );
@@ -243,11 +245,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
                     style:
                         TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
                   ),
-                if (st.error != null)
-                  Text(
-                    'Background worker error: ${st.error}',
-                    style: TextStyle(fontSize: 12, color: scheme.error),
-                  ),
+                if (st.error != null) WorkerProblemLine(raw: st.error!),
               ],
             ),
           );
@@ -353,10 +351,111 @@ class _InterruptedBanner extends StatelessWidget {
 
 /// Error text for the screen: keeps the failure class and wording, drops
 /// anything that could expose a watched link or a device path.
-String _redactDiagnostic(String raw) {
+/// The stored worker error worth showing, or null. Errors are stored as
+/// `<ISO time> <message>`. One recorded at or before the last completed run
+/// is history - a later run succeeded - so it is not shown (the Oct 25
+/// permission error stayed on screen for days under fresh successful runs).
+String? currentWorkerError(String? stored, DateTime? lastCompleted) {
+  if (stored == null || stored.trim().isEmpty) return null;
+  final at = workerErrorTime(stored);
+  if (at != null && lastCompleted != null && !at.isAfter(lastCompleted)) {
+    return null;
+  }
+  return stored;
+}
+
+DateTime? workerErrorTime(String stored) {
+  final space = stored.indexOf(' ');
+  if (space <= 0) return null;
+  return DateTime.tryParse(stored.substring(0, space));
+}
+
+/// A short, calm line for the last background problem; the raw text sits
+/// behind "Details" for anyone who wants to send it on.
+class WorkerProblemLine extends StatefulWidget {
+  final String raw;
+  const WorkerProblemLine({super.key, required this.raw});
+
+  @override
+  State<WorkerProblemLine> createState() => _WorkerProblemLineState();
+}
+
+class _WorkerProblemLineState extends State<WorkerProblemLine> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final at = workerErrorTime(widget.raw);
+    final message = at == null
+        ? widget.raw
+        : widget.raw.substring(widget.raw.indexOf(' ') + 1);
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            key: const ValueKey('worker-problem-toggle'),
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => setState(() => _open = !_open),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: scheme.tertiary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      at == null
+                          ? 'Last check had a problem'
+                          : 'Last check had a problem (${fmtHistoryTime(at)})',
+                      style: TextStyle(fontSize: 12, color: scheme.onSurface),
+                    ),
+                  ),
+                  Text(
+                    _open ? 'Hide' : 'Details',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: scheme.primary,
+                    ),
+                  ),
+                  Icon(_open ? Icons.expand_less : Icons.expand_more,
+                      size: 18, color: scheme.primary),
+                ],
+              ),
+            ),
+          ),
+          if (_open)
+            Container(
+              key: const ValueKey('worker-problem-details'),
+              width: double.infinity,
+              margin: const EdgeInsets.only(top: 4),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: SelectableText(
+                _redactDiagnostic(message, max: 1200),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: scheme.onSurfaceVariant,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+String _redactDiagnostic(String raw, {int max = 300}) {
   var out = raw.replaceAll(RegExp(r'https?://\S+'), '<link>');
   out = out.replaceAll(RegExp(r'(/[A-Za-z0-9_.-]+){2,}[A-Za-z0-9_/.-]*'), '<path>');
-  return out.length > 300 ? '${out.substring(0, 300)}...' : out;
+  return out.length > max ? '${out.substring(0, max)}...' : out;
 }
 
 /// Snapshot of worker liveness for the history screen.

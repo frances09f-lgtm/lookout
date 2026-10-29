@@ -50,7 +50,7 @@ jobs:
           test "$CERT_SHA" = '21e086dd5542df3c6f3cb10318e2508517edd28d91f5a388cc3fa79f2e74bdd4'
           "$AAPT" dump badging "$APK" | tee /tmp/badging.txt
           grep -F "package: name='com.ambi.lookout'" /tmp/badging.txt
-          grep -F "versionName='1.1.16'" /tmp/badging.txt
+          grep -F "versionName='1.1.17'" /tmp/badging.txt
           test "${{ github.run_number }}" -gt 173
           sha256sum "$APK"
       - uses: actions/upload-artifact@v4
@@ -62,5 +62,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo 'IyBMb29rb3V0IDEuMS4xNgoKIyMgRml4ZWQKLSBBIHBvc3NpYmxlIGNyYXNoIHdoZW4gYXNraW5nIGZvciBub3RpZmljYXRpb24gcGVybWlzc2lvbiB3aXRoIG5vIGFjdGl2aXR5IGF0dGFjaGVkICh0aGUgMjUgT2N0b2JlciBiYWNrZ3JvdW5kIGVycm9yIHNvbWUgaGlzdG9yeSBzY3JlZW5zIGtlcHQgc2hvd2luZykuIEFza2luZyBpcyBub3cgYmVzdC1lZmZvcnQgYW5kIGNhbiBuZXZlciBicmVhayBzdGFydHVwLgotIFRoZSBoaXN0b3J5IHNjcmVlbiBubyBsb25nZXIgc2hvd3MgYW4gb2xkIGJhY2tncm91bmQgZXJyb3IgYWZ0ZXIgdGhlIHdvcmtlciBoYXMgYWxyZWFkeSByZWNvdmVyZWQ6IGEgc3VjY2Vzc2Z1bCBiYWNrZ3JvdW5kIHJ1biBub3cgY2xlYXJzIHRoZSBzdG9yZWQgZXJyb3IuCgojIyBOb3QgZml4ZWQKLSBQYWdlcyBmcm9tIHNpdGVzIHRoYXQgYmxvY2sgYXV0b21hdGVkIHJlYWRlcnMgKGZvciBleGFtcGxlIGluLmludmVzdGluZy5jb20pIHN0aWxsIGNhbm5vdCBiZSBmZXRjaGVkLiBUaGF0IGJsb2NrIGlzIG9uIHRoZSBzaXRlJ3Mgc2lkZTsgYWZmZWN0ZWQgd2F0Y2hlcyBrZWVwIHRoZWlyIGxhc3QgdmFsdWUgYW5kIHJlcG9ydCB0aGUgZmFpbHVyZSBob25lc3RseS4K' | base64 -d > /tmp/RELEASE_NOTES.md
-          gh release create v1.1.16 "build/app/outputs/flutter-apk/Lookout.apk" --target "$GITHUB_SHA" --title "Lookout 1.1.16 - Notification-permission crash guard and stale worker error cleared" --notes-file /tmp/RELEASE_NOTES.md
+          echo 'IyBMb29rb3V0IDEuMS4xNwoKIyMgRml4ZWQKLSBUaGUgdGFzayBoaXN0b3J5IHNjcmVlbiBubyBsb25nZXIgc2hvd3MgYW4gb2xkIGJhY2tncm91bmQgZXJyb3IgYWZ0ZXIgbGF0ZXIgY2hlY2tzIHN1Y2NlZWRlZC4gQW4gZXJyb3IgaXMgb25seSBzaG93biBpZiBpdCBoYXBwZW5lZCBhZnRlciB0aGUgbGFzdCBzdWNjZXNzZnVsIGNoZWNrLgotIEEgYmFja2dyb3VuZCBwcm9ibGVtIG5vdyBzaG93cyBhcyBvbmUgc2hvcnQgbGluZSwgIkxhc3QgY2hlY2sgaGFkIGEgcHJvYmxlbSIsIHdpdGggdGhlIGZ1bGwgdGVjaG5pY2FsIHRleHQgYmVoaW5kIGEgRGV0YWlscyBidXR0b24gaW5zdGVhZCBvZiBhIHdhbGwgb2YgcmVkIHRleHQuCi0gQmFja2dyb3VuZCBjaGVja3MgbmV2ZXIgYXNrIEFuZHJvaWQgZm9yIGEgcGVybWlzc2lvbi4gTG9va291dCBhc2tzIGZvciBub3RpZmljYXRpb24gcGVybWlzc2lvbiBvbmx5IHdoaWxlIHRoZSBhcHAgaXMgb3BlbiBvbiBzY3JlZW4uCi0gSWYgbm90aWZpY2F0aW9ucyBhcmUgdHVybmVkIG9mZiBmb3IgTG9va291dCwgYSBjaGVjayB0aGF0IGhpdHMgaXRzIHRhcmdldCBzdGlsbCBjb21wbGV0ZXMgYW5kIHRoZSB0YXNrJ3MgaGlzdG9yeSBzYXlzIHdoeSBubyBhbGVydCBhcHBlYXJlZCwgaW5zdGVhZCBvZiBmYWlsaW5nIHRoZSB3aG9sZSBiYWNrZ3JvdW5kIHJ1bi4KCiMjIENoZWNrcyB1bmNoYW5nZWQKLSBXYXRjaGVzIHN0aWxsIHJ1biBvbiB0aGVpciBvd24gc2NoZWR1bGUgKGZvciBleGFtcGxlIGV2ZXJ5IDYgaCkgYW5kIGFsZXJ0IG9uY2UgdGhlIGNvbmRpdGlvbiBpcyBtZXQuIE5vdGhpbmcgYWJvdXQgcHJpY2UgcmVhZGluZyB3YXMgY2hhbmdlZC4K' | base64 -d > /tmp/RELEASE_NOTES.md
+          gh release create v1.1.17 "build/app/outputs/flutter-apk/Lookout.apk" --target "$GITHUB_SHA" --title "Lookout 1.1.17 - Calmer background error line, no background permission asks" --notes-file /tmp/RELEASE_NOTES.md

@@ -74,6 +74,10 @@ class LookoutRootState extends State<LookoutRoot> {
       void Function(int agentId) onTapAgent) async {
     final notifications = LocalNotificationsService(onTapAgent: onTapAgent);
     await notifications.init();
+    // The visible app is the only place that may ask: it has an Activity.
+    // Not awaited - the Android box must not hold up startup - and it never
+    // throws (a refusal just means alerts stay off until allowed).
+    unawaited(notifications.requestPermissionFromForeground());
     return notifications;
   }
 

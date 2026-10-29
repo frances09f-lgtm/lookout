@@ -120,8 +120,10 @@ Future<bool> runWorkmanagerTask({
   try {
     final notifier = await (makeNotifier?.call() ??
         () async {
+          // Background isolate: no Activity, so init() only - it never
+          // asks for a permission (see LocalNotificationsService.init).
           final n = LocalNotificationsService();
-          await n.init(requestPermission: false);
+          await n.init();
           return n;
         }());
     repo = await (openRepo?.call() ?? SqfliteAgentRepository.open());

@@ -19,10 +19,14 @@ class LocalNotificationsService implements LookoutNotifier {
   LocalNotificationsService({FlutterLocalNotificationsPlugin? plugin, this.onTapAgent})
       : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
-  /// [requestPermission] must stay true only for the foreground app: the
-  /// WorkManager dispatcher runs without an activity, where a runtime
-  /// permission prompt has nothing to attach to.
-  Future<void> init({bool requestPermission = true}) async {
+  /// Prepares the plugin. Safe in every isolate: it never asks Android for
+  /// a permission. The WorkManager dispatcher runs without an Activity, and
+  /// the plugin's permission request needs one - asking from there threw
+  /// "Attempt to invoke virtual method 'int android.content.Context
+  /// .checkPermission(...)' on a null object reference" and failed the whole
+  /// background cycle (the 1.1.8 "Background worker error"). The prompt is
+  /// [requestPermissionFromForeground], called only by the visible app.
+  Future<void> init() async {
     const init = InitializationSettings(
         android: AndroidInitializationSettings('@mipmap/ic_launcher'));
     await _plugin.initialize(
@@ -35,26 +39,48 @@ class LocalNotificationsService implements LookoutNotifier {
         }
       },
     );
-    // Android 13+ runtime permission. The plugin call needs an activity;
-    // in a headless or half-attached start it throws a PlatformException
-    // (the 25 Oct crash: checkPermission on a null Context). Asking is
-    // best-effort - notifications.init must never fail over it.
-    if (requestPermission) {
-      try {
-        await _plugin
-            .resolvePlatformSpecificImplementation<
-                AndroidFlutterLocalNotificationsPlugin>()
-            ?.requestNotificationsPermission();
-      } catch (_) {
-        // No activity to attach the prompt to; the next foreground start
-        // asks again.
-      }
+  }
+
+  /// Android 13+ runtime permission prompt. FOREGROUND ONLY: call it from
+  /// the visible app (startup, creating a task), never from background code.
+  /// Never throws; returns whether notifications are allowed afterwards.
+  Future<bool> requestPermissionFromForeground() async {
+    try {
+      final granted = await _plugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.requestNotificationsPermission();
+      return granted ?? true;
+    } catch (_) {
+      return false;
     }
   }
 
+  /// Whether Android currently lets Lookout post notifications. Reads only;
+  /// safe without an Activity. Unknown counts as allowed so a plugin hiccup
+  /// never suppresses an alert.
+  Future<bool> notificationsAllowed() async {
+    try {
+      final enabled = await _plugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.areNotificationsEnabled();
+      return enabled ?? true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /// Shows a result without asking for any permission. When Android has
+  /// notifications turned off for Lookout this throws
+  /// [NotificationsDisabled] so the caller can record why nothing appeared;
+  /// it never prompts.
   @override
   Future<void> showAgentResult(
-      {required int agentId, required String title, required String body}) {
+      {required int agentId, required String title, required String body}) async {
+    if (!await notificationsAllowed()) {
+      throw const NotificationsDisabled();
+    }
     const details = NotificationDetails(
       android: AndroidNotificationDetails(
         channelId,
@@ -64,9 +90,16 @@ class LocalNotificationsService implements LookoutNotifier {
         priority: Priority.high,
       ),
     );
-    return _plugin.show(agentId, title, body, details,
+    await _plugin.show(agentId, title, body, details,
         payload: 'agent:$agentId');
   }
+}
+
+/// Android has notifications switched off for Lookout.
+class NotificationsDisabled implements Exception {
+  const NotificationsDisabled();
+  @override
+  String toString() => 'Notifications are turned off for Lookout';
 }
 
 /// Test/headless sink: records what would have been shown.

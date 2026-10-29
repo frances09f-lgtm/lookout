@@ -227,8 +227,22 @@ class AgentChecker {
           ? agent.originalPrompt
           : '$detail - ${agent.conditionLabel}';
       if (agent.notificationEnabled) {
-        await notifier.showAgentResult(agentId: id, title: title, body: body);
-        await repo.logActivity(id, 'Notification sent', at);
+        // A notification that cannot be shown (notifications switched off,
+        // a plugin hiccup in the background isolate) must not fail the
+        // check: the result is recorded either way, and the reason lands in
+        // the task's history instead of as a worker error.
+        try {
+          await notifier.showAgentResult(agentId: id, title: title, body: body);
+          await repo.logActivity(id, 'Notification sent', at);
+        } catch (e) {
+          await repo.logActivity(
+            id,
+            e is NotificationsDisabled
+                ? 'Notification not shown: notifications are turned off for Lookout in Android settings'
+                : 'Notification could not be shown',
+            at,
+          );
+        }
       }
       UsageReporter.report(
         agent.type == AgentType.reminder ? 'reminder_fired' : 'watch_triggered',
