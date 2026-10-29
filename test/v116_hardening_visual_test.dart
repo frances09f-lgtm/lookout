@@ -87,7 +87,7 @@ void main() {
     expect(find.text('Started check'), findsNothing);
     expect(find.text('NO RESULT'), findsNothing);
     expect(find.textContaining('Checks every 1 h'), findsOneWidget);
-    expect(find.textContaining('next check scheduled for'), findsOneWidget);
+    expect(find.textContaining('next check due from'), findsOneWidget);
     expect(find.textContaining('Background worker last completed:'), findsOneWidget);
     expect(find.textContaining('(app-wide)'), findsOneWidget);
     expect(t.takeException(), isNull);
