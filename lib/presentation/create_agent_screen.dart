@@ -135,6 +135,8 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
             discovery: widget.discovery ?? defaultSourceDiscovery(),
             fixedTarget: p.target,
             fixedCondition: p.condition,
+            initialCountry: 'IN',
+            initialCurrency: 'INR',
           ),
         ),
       );

@@ -228,12 +228,34 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
     if (agent == null) return;
     final selected = await Navigator.of(context).push<ReviewedSource>(
       MaterialPageRoute(
-        builder: (_) => SourceReviewScreen(
-          task: agent.originalPrompt,
-          discovery: widget.discovery ?? defaultSourceDiscovery(),
-          fixedTarget: agent.target,
-          fixedCondition: agent.condition,
-        ),
+        builder: (_) {
+          // Re-sourcing keeps the market the watch already proved (a USD
+          // gold watch stays USD); only an unknown market asks explicitly.
+          DiscoverySpec? stored;
+          if (agent.sourceIdentity != null) {
+            try {
+              stored = DiscoverySpec.forAgent(agent);
+            } catch (_) {
+              stored = null; // unreadable identity: ask explicitly
+            }
+          }
+          final storedCountry =
+              stored != null && stored.country.isNotEmpty
+              ? stored.country
+              : null;
+          final storedCurrency =
+              stored != null && stored.currency.isNotEmpty
+              ? stored.currency
+              : null;
+          return SourceReviewScreen(
+            task: agent.originalPrompt,
+            discovery: widget.discovery ?? defaultSourceDiscovery(),
+            fixedTarget: agent.target,
+            fixedCondition: agent.condition,
+            initialCountry: storedCountry,
+            initialCurrency: storedCurrency,
+          );
+        },
       ),
     );
     if (!mounted || selected == null) return;

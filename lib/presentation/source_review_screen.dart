@@ -12,12 +12,19 @@ class SourceReviewScreen extends StatefulWidget {
   final SourceDiscoveryService discovery;
   final double? fixedTarget;
   final WatchCondition? fixedCondition;
+  // Preselected market for NEW finder flows. Null keeps the explicit
+  // question, so re-sourcing an existing watch never gets a market
+  // silently imposed over the one its task already proved.
+  final String? initialCountry;
+  final String? initialCurrency;
   const SourceReviewScreen({
     super.key,
     required this.task,
     required this.discovery,
     this.fixedTarget,
     this.fixedCondition,
+    this.initialCountry,
+    this.initialCurrency,
   });
   @override
   State<SourceReviewScreen> createState() => _SourceReviewScreenState();
@@ -25,8 +32,8 @@ class SourceReviewScreen extends StatefulWidget {
 
 class _SourceReviewScreenState extends State<SourceReviewScreen> {
   late final TextEditingController _task;
-  String? _country;
-  String? _currency;
+  late String? _country;
+  late String? _currency;
   DiscoveryResult? _result;
   List<String> _questions = const [];
   SourceCandidate? _selected;
@@ -39,6 +46,8 @@ class _SourceReviewScreenState extends State<SourceReviewScreen> {
   @override
   void initState() {
     super.initState();
+    _country = widget.initialCountry;
+    _currency = widget.initialCurrency;
     _task = TextEditingController(text: widget.task);
     _task.addListener(_invalidate);
   }
