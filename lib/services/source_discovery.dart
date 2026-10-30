@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:lookout_render/lookout_render.dart';
 import 'dart:io';
 
 import 'page_fetch.dart';
@@ -33,6 +34,11 @@ class DiscoverySpec {
   /// structured data, proven by subject + currency-guided value + freshness)
   /// is activated; routes later reads to the same readable-quote proof.
   final bool readableQuote;
+
+  /// Persisted only after a reviewed rendered-page candidate is activated;
+  /// this source proves itself on a RENDERED page (JS-only store), so checks
+  /// read it with the on-device browser engine, never plain HTTP.
+  final bool renderRequired;
   const DiscoverySpec({
     required this.model,
     this.kind = 'productPrice',
@@ -46,6 +52,7 @@ class DiscoverySpec {
     this.colour,
     this.marketQuote = false,
     this.readableQuote = false,
+    this.renderRequired = false,
   });
   String encode() => jsonEncode({
     'model': model,
@@ -58,6 +65,7 @@ class DiscoverySpec {
     'colour': colour,
     'marketQuote': marketQuote,
     'readableQuote': readableQuote,
+    'renderRequired': renderRequired,
   });
   static DiscoverySpec forAgent(Agent agent) {
     final data = jsonDecode(agent.sourceIdentity!) as Map;
@@ -74,6 +82,7 @@ class DiscoverySpec {
       colour: data['colour'] as String?,
       marketQuote: data['marketQuote'] as bool? ?? false,
       readableQuote: data['readableQuote'] as bool? ?? false,
+      renderRequired: data['renderRequired'] as bool? ?? false,
     );
   }
 
@@ -82,7 +91,18 @@ class DiscoverySpec {
     if (isText) return '$model official';
     if (storageGb == 0 && colour == null) {
       // Region-free subjects (market quotes, instruments): a commerce-shaped
-      // "buy" query buries live price pages under SEO/news results.
+      // "buy" query buries live price pages under SEO/news results. A
+      // digit-bearing model names a concrete product, not a quote, and
+      // country-qualified commerce queries rank regional retailers above
+      // global news; quote subjects (gold, silver, pairs) carry no digit
+      // and keep the region-free form that ranks live quote pages.
+      if (RegExp(r'\d').hasMatch(model)) {
+        return '$model ${country == 'IN'
+            ? 'India'
+            : country == 'US'
+            ? 'United States'
+            : country} price $currency';
+      }
       return '$model price $currency';
     }
     return '$model ${colour ?? ''} ${storageGb > 0 ? '${storageGb}GB' : ''} ${country == 'IN'
@@ -291,11 +311,12 @@ class DiscoveryTaskParser {
       value.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
   /// Identity for a freshly fetched merchant page read as visible text.
   /// Real retailer titles always carry descriptors ("Wireless
-  /// Noise-Canceling Headphones (Black) | Vijay Sales"), so the exact
-  /// equality the structured ld+json path keeps can never match a real
-  /// page. Here the full model phrase must appear contiguously and no
-  /// accessory/variant/used marker may be present; the page still has to
-  /// prove stock, country and a single dominant current price afterwards.
+  /// Noise-Canceling Headphones (Black) | Vijay Sales", "Samsung Galaxy
+  /// S25 5G (Silver Shadow, 128 GB)"), so the exact equality the
+  /// structured ld+json path keeps can never match a real page. Here every
+  /// model token must appear and no accessory/variant/used marker may be
+  /// present; the page still has to prove stock, country and a single
+  /// dominant current price afterwards.
   static bool visibleIdentityMatches(String name, DiscoverySpec spec) {
     if (identityMatches(name, spec)) return true;
     if (spec.storageGb > 0) return false; // the pinned path already said no
@@ -303,18 +324,57 @@ class DiscoveryTaskParser {
         _normal(v).replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
     final cName = canonical(name);
     final cModel = canonical(spec.model);
-    if (!' $cName '.contains(' $cModel ')) return false;
+    // Retailer titles carry descriptors between the model words
+    // ("Samsung Galaxy S25 5G (Silver Shadow, 128 GB)" for "Samsung
+    // S25"), so requiring the model phrase contiguously rejects every
+    // real page. Require every model token instead; the
+    // variant/accessory guards below still keep a different variant
+    // (Ultra/FE/Plus/Edge) or an accessory/used listing from passing.
     final modelTokens = cModel.split(' ').where((t) => t.isNotEmpty).toSet();
     final nameTokens = cName.split(' ').where((t) => t.isNotEmpty).toSet();
+    if (!nameTokens.containsAll(modelTokens)) return false;
     const markers = [
       'ultra', 'plus', 'pro', 'max', 'fe', 'edge', 'mini',
       'case', 'cover', 'charger', 'cable', 'protector',
       'refurbished', 'renewed', 'used', 'vs', 'replacement', 'spare',
       'earpads', 'sleeve', 'pouch', 'strap', 'adapter', 'skin', 'decal',
-      'wrap', 'holder', 'mount', 'tempered',
+      'wrap', 'holder', 'mount', 'tempered', 'compare', 'comparison',
     ];
     for (final m in markers) {
       if (!modelTokens.contains(m) && nameTokens.contains(m)) return false;
+    }
+    // A combined or sibling-model page names a different member of the
+    // same family ("WH-1000XM4" beside the asked "WH-1000XM5", "S24"
+    // beside "S25"): every asked token can appear, yet the page is not
+    // about the asked model. Same letter skeleton with different digits
+    // marks a sibling. RAM/storage sizes ("12gb") share no skeleton with
+    // a model number ("s25" -> "s#"), and a purely numeric model token
+    // ("Pixel 9") gets no skeleton, so neither false-fires here.
+    String? skeleton(String t) =>
+        RegExp(r'[a-z]').hasMatch(t) && RegExp(r'\d').hasMatch(t)
+        ? t.replaceAll(RegExp(r'\d+'), '#')
+        : null;
+    final familySkeletons =
+        modelTokens.map(skeleton).whereType<String>().toSet();
+    if (familySkeletons.isNotEmpty) {
+      for (final t in nameTokens) {
+        final s = skeleton(t);
+        if (s != null && familySkeletons.contains(s) &&
+            !modelTokens.contains(t)) {
+          return false;
+        }
+      }
+    }
+    // "S25+" style plus-suffix vanishes in canonicalisation; check raw text.
+    final family = modelTokens.firstWhere(
+      (t) => t.contains(RegExp(r'\d')),
+      orElse: () => '',
+    );
+    if (family.isNotEmpty &&
+        !spec.model.contains('+') &&
+        RegExp('\\b${RegExp.escape(family)}\\+', caseSensitive: false)
+            .hasMatch(name)) {
+      return false;
     }
     if (nameTokens.contains('ear') && nameTokens.contains('pads')) {
       return false;
@@ -463,6 +523,8 @@ class SourceCandidate {
   /// rather than machine-readable structured data - a looser evidence class,
   /// labelled as such.
   final bool visibleOffer;
+  /// Proven on a rendered page only; checks use the on-device browser engine.
+  final bool renderRequired;
   bool get thirdPartyTracker =>
       trackedSellerHost != null &&
       SourceCandidateValidator.registrableDomain(trackedSellerHost!) !=
@@ -489,6 +551,7 @@ class SourceCandidate {
     this.readableQuote = false,
     this.trackedSellerHost,
     this.visibleOffer = false,
+    this.renderRequired = false,
   });
 }
 
@@ -629,7 +692,15 @@ class SourceCandidateValidator {
     if (products.length != 1) return null;
     final p = products.single;
     final name = p['name']?.toString() ?? '';
-    if (!DiscoveryTaskParser.identityMatches(name, spec)) return null;
+    // A single structured product with a single explicit offer is the
+    // strongest association there is; the name check keeps the same
+    // standard as the visible path (every model token, variant/accessory
+    // and sibling guards), so a descriptive retailer name no longer
+    // outranks a worse-proven page in reverse.
+    if (!DiscoveryTaskParser.identityMatches(name, spec) &&
+        !DiscoveryTaskParser.visibleIdentityMatches(name, spec)) {
+      return null;
+    }
     if (spec.colour != null &&
         !RegExp(
           '\\b${RegExp.escape(spec.colour!)}\\b',
@@ -1710,9 +1781,14 @@ class SourceDiscoveryService {
     final age = time.difference(selected.checkedAt);
     if (age.isNegative || age > const Duration(minutes: 5)) return null;
     try {
-      final page = await pageReader
-          .read(selected.url)
-          .timeout(const Duration(seconds: 8));
+      final rendered = selected.renderRequired || spec.renderRequired;
+      final page = rendered
+          ? await const RenderedDiscoveryPageReader()
+              .read(selected.url)
+              .timeout(const Duration(seconds: 32))
+          : await pageReader
+              .read(selected.url)
+              .timeout(const Duration(seconds: 8));
       if (page.finalUrl != selected.url) return null;
       final fresh = selected.readableQuote
           ? SourceCandidateValidator.validateReadableQuote(
@@ -1744,13 +1820,16 @@ class SourceDiscoveryService {
       final hits = <SourceCandidate>[];
       final review = <ReviewOnlySource>[];
       final seen = <String>{};
+      // Materialized: the dedupe filter is stateful, so re-iterating a
+      // lazy iterable would drop every link on the second pass.
       final candidates = links
           .where(
             (link) =>
                 SourceCandidateValidator.publicHttps(link.url) &&
                 seen.add(link.url.toString()),
           )
-          .take(8);
+          .take(10)
+          .toList();
       final pages = await Future.wait(
         candidates.map((link) async {
           try {
@@ -1779,6 +1858,69 @@ class SourceDiscoveryService {
             if (lead != null && !review.any((h) => h.url == lead.url)) {
               review.add(lead);
             }
+          }
+        }
+      }
+      // Second pass, RENDERED reads: only for pages that answered the plain
+      // read with a script-only shell (JS-only stores). A page that refused
+      // the plain read (access wall) is never retried here, and a rendered
+      // page passes the exact same strict validation - rendering changes
+      // what is readable, never what counts as proof. Bounded to four pages.
+      if (hits.isEmpty && !spec.isText) {
+        final shells = <ProductPage>[];
+        for (var i = 0; i < pages.length && shells.length < 4; i++) {
+          final page = pages[i];
+          if (page != null && looksLikeScriptShell(page)) shells.add(page);
+        }
+        const renderedReader = RenderedDiscoveryPageReader();
+        for (final shell in shells) {
+          ProductPage rendered;
+          try {
+            rendered = await renderedReader
+                .read(shell.finalUrl)
+                .timeout(const Duration(seconds: 32));
+          } catch (_) {
+            continue; // an unreadable rendered page stays unknown
+          }
+          final match = SourceCandidateValidator.validate(spec, rendered);
+          if (match != null) {
+            final marked = SourceCandidate(
+              url: match.url,
+              product: match.product,
+              price: match.price,
+              currency: match.currency,
+              country: match.country,
+              checkedAt: match.checkedAt,
+              marketQuote: match.marketQuote,
+              readableQuote: match.readableQuote,
+              visibleOffer: match.visibleOffer,
+              renderRequired: true,
+            );
+            if (!hits.any((h) => h.url == marked.url)) hits.add(marked);
+            continue;
+          }
+          final quote = SourceCandidateValidator.validateReadableQuote(
+            spec,
+            rendered,
+          );
+          if (quote != null) {
+            final marked = SourceCandidate(
+              url: quote.url,
+              product: quote.product,
+              price: quote.price,
+              currency: quote.currency,
+              country: quote.country,
+              checkedAt: quote.checkedAt,
+              marketQuote: quote.marketQuote,
+              readableQuote: quote.readableQuote,
+              renderRequired: true,
+            );
+            if (!hits.any((h) => h.url == marked.url)) hits.add(marked);
+            continue;
+          }
+          final lead = SourceCandidateValidator.reviewOnly(spec, rendered);
+          if (lead != null && !review.any((h) => h.url == lead.url)) {
+            review.add(lead);
           }
         }
       }
@@ -1844,10 +1986,18 @@ class SourceDiscoveryService {
           }
         }
       }
+      // Distinguish "nothing readable" from "readable but unproven": the
+      // first means stores blocked the plain read (or served script-only
+      // shells), which pasting a link or retrying can plausibly change;
+      // the second means the pages simply did not prove the offer.
+      final foundButUnreadable =
+          candidates.isNotEmpty && !pages.any((p) => p != null);
       return DiscoveryResult(
         List.unmodifiable(hits),
         hits.isEmpty && review.isEmpty
-            ? (spec.isText
+            ? (foundButUnreadable && !spec.isText
+                  ? 'Search found store pages for this, but none allowed a direct read, so no current price could be proven. Try again later or paste a product-page link. No watch was started.'
+                  : spec.isText
                   ? 'No readable public page matching this subject was verified. No watch was started.'
                   : spec.storageGb == 0
                   ? 'No page with a provable current price for this exact subject and currency was verified. Try again later or use an optional manual URL. No watch was started.'
@@ -1864,6 +2014,37 @@ class SourceDiscoveryService {
       );
     }
   }
+}
+
+/// Reads a page through the on-device browser engine (lookout_render plugin).
+/// Used only as a second pass for pages that ANSWERED 200 but served a
+/// script-only shell; pages that refused the plain read (429/403/503,
+/// challenge walls) are never retried here - that refusal is respected.
+class RenderedDiscoveryPageReader implements DiscoveryPageReader {
+  const RenderedDiscoveryPageReader();
+  @override
+  Future<ProductPage> read(Uri url) async {
+    final rendered = await LookoutRender.read(url);
+    if (rendered == null) throw StateError('rendered read unavailable');
+    return ProductPage(rendered.finalUrl, 200, rendered.body);
+  }
+}
+
+/// True when a 200 page carries no usable content because it is a script-only
+/// shell (generic/empty title, almost no text, or an explicit "enable
+/// JavaScript" notice). ONLY such pages qualify for a rendered second pass.
+bool looksLikeScriptShell(ProductPage page) {
+  if (page.status != 200) return false;
+  final doc = html.parse(page.body);
+  final title = doc.querySelector('title')?.text.trim() ?? '';
+  final h1 = doc.querySelector('h1')?.text.trim() ?? '';
+  final text = (doc.body?.text ?? '').replaceAll(RegExp(r'\s+'), ' ').trim();
+  if (RegExp(r'enable javascript', caseSensitive: false).hasMatch(text)) {
+    return true;
+  }
+  if (text.length < 200 && title.length < 40) return true;
+  if (h1.isEmpty && text.length < 600) return true;
+  return false;
 }
 
 /// Free, documented keyless endpoint. Foreground, user-started searches only;
@@ -1883,7 +2064,7 @@ class TavilyKeylessSearch implements SourceSearchProvider {
       request.write(
         jsonEncode({
           'query': spec.query,
-          'max_results': 8,
+          'max_results': 12,
           'search_depth': 'basic',
         }),
       );
@@ -2052,6 +2233,7 @@ class ReviewedSource {
     colour: spec.colour,
     marketQuote: candidate.marketQuote,
     readableQuote: candidate.readableQuote,
+    renderRequired: candidate.renderRequired,
   ).encode();
 }
 
@@ -2064,9 +2246,13 @@ class DiscoveredSourceReader {
   }) async {
     try {
       final spec = DiscoverySpec.forAgent(agent);
-      final page = await (reader ?? const HttpDiscoveryPageReader())
-          .read(Uri.parse(agent.sourceUrl!))
-          .timeout(const Duration(seconds: 8));
+      final page = spec.renderRequired
+          ? await const RenderedDiscoveryPageReader()
+              .read(Uri.parse(agent.sourceUrl!))
+              .timeout(const Duration(seconds: 32))
+          : await (reader ?? const HttpDiscoveryPageReader())
+              .read(Uri.parse(agent.sourceUrl!))
+              .timeout(const Duration(seconds: 8));
       if (page.finalUrl != Uri.parse(agent.sourceUrl!)) {
         return FetchOutcome.failed(
           'The saved source address changed; review it again',
