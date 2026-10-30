@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lookout/data/agent_repository.dart';
 import 'package:lookout/presentation/create_agent_screen.dart';
@@ -268,6 +269,15 @@ void main() {
         final key = GlobalKey();
         final repo = InMemoryAgentRepository();
         final reader = MutableReader(fixture());
+        // The shell-fixture now triggers a rendered second read; no plugin
+        // exists in tests, so answer the channel with an unavailable read.
+        const renderChannel = MethodChannel('lookout/render');
+        final messenger =
+            TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+        messenger.setMockMethodCallHandler(renderChannel, (_) async => null);
+        addTearDown(
+          () => messenger.setMockMethodCallHandler(renderChannel, null),
+        );
         await t.pumpWidget(
           MaterialApp(
             theme: dark ? LookoutTheme.dark() : LookoutTheme.light(),
@@ -279,6 +289,9 @@ void main() {
         await t.enterText(find.byType(TextField).first, task);
         await capture.tap(t, find.text('Find matching source'));
         await chooseMarket(t);
+        // The discovery flow now attempts a rendered second read for
+        // script-shell pages; let that asynchronous attempt settle first.
+        await t.pumpAndSettle();
         await t.scrollUntilVisible(
           find.text('Pages needing more evidence'),
           240,
